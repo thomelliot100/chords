@@ -1,5 +1,5 @@
 /* Simple offline cache. Bump CACHE when you change core files. */
-const CACHE = "songbook-v6";
+const CACHE = "songbook-v7";
 const ASSETS = [
   "./",
   "./index.html",
@@ -11,8 +11,26 @@ const ASSETS = [
   "./icon.svg"
 ];
 
+/* pdf.js is ~1.4MB and only used by the importer, so it's fetched separately
+   and best-effort: without this, PDF import silently needs a connection the
+   first time. Kept out of ASSETS because addAll() is all-or-nothing — a flaky
+   fetch of a 1.4MB file would otherwise fail the whole install and leave the
+   app with no offline copy at all. */
+const EXTRAS = [
+  "./vendor/pdf.min.js",
+  "./vendor/pdf.worker.min.js"
+];
+
 self.addEventListener("install", function (e) {
-  e.waitUntil(caches.open(CACHE).then(function (c) { return c.addAll(ASSETS); }));
+  e.waitUntil(
+    caches.open(CACHE).then(function (c) {
+      return c.addAll(ASSETS).then(function () {
+        return Promise.all(EXTRAS.map(function (u) {
+          return c.add(u).catch(function () { /* picked up at runtime instead */ });
+        }));
+      });
+    })
+  );
   self.skipWaiting();
 });
 
