@@ -24,6 +24,7 @@
     <div class="lib-header">
       <h1>🎸 Songbook</h1>
       <span class="count" id="count"></span>
+      <button class="btn lib-action" id="importBtn">＋ Import</button>
     </div>
     <div class="search-wrap">
       <input id="search" type="search" placeholder="Search songs or artists…" autocomplete="off" autocorrect="off" spellcheck="false" />
@@ -68,6 +69,29 @@
     <div id="sheet"></div>
   </section>
 
+  <!-- ===================== IMPORT ===================== -->
+  <div id="importOverlay" aria-hidden="true">
+    <div class="import-panel" role="dialog" aria-label="Import a song">
+      <div class="import-head">
+        <strong>Import a song</strong>
+        <button class="btn mini" id="importClose" aria-label="Close import">✕</button>
+      </div>
+      <div class="import-fields">
+        <input id="impTitle" placeholder="Title" autocomplete="off" />
+        <input id="impArtist" placeholder="Artist" autocomplete="off" />
+        <input id="impKey" placeholder="Key" autocomplete="off" />
+        <input id="impCapo" type="number" placeholder="Capo" min="0" max="11" />
+      </div>
+      <textarea id="impText" placeholder="Paste the chart here…" spellcheck="false"></textarea>
+      <div class="import-hint" id="impHint"></div>
+      <div class="import-preview" id="impPreview"></div>
+      <div class="import-actions">
+        <button class="btn" id="impExport">Export mine</button>
+        <button class="btn primary" id="impSave">Add to songbook</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===================== CHORD DIAGRAM OVERLAY ===================== -->
   <div id="chordOverlay" aria-hidden="true">
     <div id="chordOverlayBody"></div>
@@ -78,11 +102,7 @@
   <script src="chords.js"></script>
   <script src="app.js"></script>
   <script>
-    // Show song count once loaded
-    document.addEventListener("DOMContentLoaded", function () {
-      var c = document.getElementById("count");
-      if (c && window.SONGS) c.textContent = window.SONGS.length + " songs";
-    });
+    // Song count is set by renderLibrary (it also counts imported songs).
     // Register service worker for offline use
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {

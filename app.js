@@ -77,6 +77,104 @@
     return blocks;
   }
 
+  // ---- Chart import --------------------------------------------------------
+  // Most charts in the wild put chords on their own row above the lyric, lined
+  // up by column. Convert that to inline ChordPro so the renderer can use it.
+
+  const CHORD_TOKEN =
+    /^[A-G][#b]?(?:maj|min|dim|aug|sus|add|m|M)*[0-9]*(?:sus[0-9]|add[0-9]+)?(?:\/[A-G][#b]?)?$/;
+
+  // Tokens that may sit on a chord row: chords, bar lines, beat dots, repeats.
+  function isChordish(tok) {
+    if (!tok) return false;
+    if (tok === "." || /^\|+$/.test(tok) || /^\(?x ?[0-9]+\)?$/i.test(tok)) return true;
+    if (/^n\.?c\.?$/i.test(tok)) return true;
+    return CHORD_TOKEN.test(tok);
+  }
+
+  function isChordLine(line) {
+    if (!line.trim()) return false;
+    const toks = line.trim().split(/\s+/);
+    let chords = 0;
+    for (let i = 0; i < toks.length; i++) {
+      if (!isChordish(toks[i])) return false;
+      if (/^[A-G]/.test(toks[i])) chords++;
+    }
+    return chords > 0;
+  }
+
+  function tokensWithColumns(line) {
+    const out = [];
+    const re = /\S+/g;
+    let m;
+    while ((m = re.exec(line)) !== null) out.push({ col: m.index, tok: m[0] });
+    return out;
+  }
+
+  // A heading like "[Chorus]" or "Verse 2:" — but not a bare chord like "[C]".
+  function sectionName(line) {
+    let m = line.match(/^\s*\[([^\]]+)\]\s*$/);
+    if (m) return isChordish(m[1].trim()) ? null : m[1].trim();
+    m = line.match(/^\s*([A-Za-z][A-Za-z0-9 '&/()-]{1,28}):\s*$/);
+    if (m) return m[1].trim();
+    return null;
+  }
+
+  function mergeChordLine(chordLine, lyricLine) {
+    const baseLen = lyricLine.length;
+    const marks = tokensWithColumns(chordLine)
+      .filter(function (p) { return /^[A-G]/.test(p.tok); })
+      .map(function (p) { return { tok: p.tok, at: Math.min(p.col, baseLen) }; });
+    let lyric = lyricLine;
+    // Insert right-to-left so the earlier column indices stay valid.
+    for (let i = marks.length - 1; i >= 0; i--) {
+      lyric = lyric.slice(0, marks[i].at) + "[" + marks[i].tok + "]" + lyric.slice(marks[i].at);
+    }
+    return lyric;
+  }
+
+  function looksLikeChordPro(text) {
+    return /\[[A-G][^\]]*\]\S/.test(text) || /\{\s*c(omment)?\s*:/i.test(text);
+  }
+
+  function chartToChordPro(text) {
+    const src = text.replace(/\r\n/g, "\n").replace(/\t/g, "    ").split("\n");
+    const out = [];
+    for (let i = 0; i < src.length; i++) {
+      const line = src[i];
+      const sec = sectionName(line);
+      if (sec) { out.push("{c: " + sec + "}"); continue; }
+      if (!line.trim()) { out.push(""); continue; }
+      if (isChordLine(line)) {
+        const next = src[i + 1];
+        if (next !== undefined && next.trim() && !isChordLine(next) && !sectionName(next)) {
+          out.push(mergeChordLine(line, next));
+          i++;
+          continue;
+        }
+        // Chord-only row: keep the chords, drop the column padding.
+        out.push(tokensWithColumns(line).map(function (p) {
+          return /^[A-G]/.test(p.tok) ? "[" + p.tok + "]" : p.tok;
+        }).join(" "));
+        continue;
+      }
+      out.push(line);
+    }
+    return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // Already-ChordPro text only needs its section headings normalised.
+  function importToBody(text) {
+    if (!text) return "";
+    if (looksLikeChordPro(text)) {
+      return text.replace(/\r\n/g, "\n").split("\n").map(function (l) {
+        const s = sectionName(l);
+        return s ? "{c: " + s + "}" : l;
+      }).join("\n").trim();
+    }
+    return chartToChordPro(text);
+  }
+
   // ---- State ---------------------------------------------------------------
   const store = {
     get: function (k, d) {
@@ -86,7 +184,15 @@
     set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
   };
 
-  const songs = (window.SONGS || []).map(function (s, i) {
+  // Songs you import live in local storage on this device only — they are not
+  // part of the repo and never leave the browser unless you export them.
+  function loadUserSongs() {
+    const list = store.get("userSongs", []);
+    return Array.isArray(list) ? list : [];
+  }
+  function saveUserSongs(list) { store.set("userSongs", list); }
+
+  function makeSong(s, i) {
     return {
       id: (s.title + "|" + s.artist).toLowerCase(),
       index: i,
@@ -94,9 +200,23 @@
       artist: s.artist || "",
       key: s.key || "",
       capo: s.capo || 0,
+      custom: !!s.custom,
+      body: s.body || "",
       blocks: parseSong(s.body || "")
     };
-  });
+  }
+
+  let songs = [];
+  function buildSongs() {
+    const mine = loadUserSongs().map(function (s) {
+      return {
+        title: s.title, artist: s.artist, key: s.key,
+        capo: s.capo, body: s.body, custom: true
+      };
+    });
+    songs = (window.SONGS || []).concat(mine).map(makeSong);
+  }
+  buildSongs();
 
   let current = -1;
   let fontSize = store.get("fontSize", 27);
@@ -129,6 +249,8 @@
     songs.forEach(function (song) {
       if (f && (song.title + " " + song.artist).toLowerCase().indexOf(f) === -1) return;
       shown++;
+      const row = document.createElement("div");
+      row.className = "song-row";
       const card = document.createElement("button");
       card.className = "song-card";
       card.innerHTML =
@@ -139,7 +261,24 @@
       card.querySelector(".song-card-artist").textContent = song.artist;
       card.querySelector(".song-card-key").textContent = song.key ? "Key " + song.key : "";
       card.addEventListener("click", function () { openSong(song.index); });
-      songListEl.appendChild(card);
+      row.appendChild(card);
+      if (song.custom) {
+        const del = document.createElement("button");
+        del.className = "song-del";
+        del.textContent = "✕";
+        del.setAttribute("aria-label", "Remove " + song.title);
+        del.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (!window.confirm("Remove “" + song.title + "” from your songbook?")) return;
+          saveUserSongs(loadUserSongs().filter(function (s) {
+            return (s.title + "|" + s.artist).toLowerCase() !== song.id;
+          }));
+          buildSongs();
+          renderLibrary(searchEl.value);
+        });
+        row.appendChild(del);
+      }
+      songListEl.appendChild(row);
     });
     if (shown === 0) {
       const empty = document.createElement("p");
@@ -148,6 +287,11 @@
         ? "No songs yet. Add them in songs.js."
         : "No songs match your search.";
       songListEl.appendChild(empty);
+    }
+    const countEl = $("count");
+    if (countEl) {
+      const mine = songs.filter(function (s) { return s.custom; }).length;
+      countEl.textContent = songs.length + " songs" + (mine ? " · " + mine + " yours" : "");
     }
   }
 
@@ -178,15 +322,19 @@
     metaEl.textContent = meta;
     transposeLabel.textContent = steps === 0 ? "0" : (steps > 0 ? "+" + steps : "" + steps);
 
-    sheetEl.innerHTML = "";
-    song.blocks.forEach(function (b) {
+    renderBlocks(sheetEl, song.blocks, steps, useFlats);
+  }
+
+  function renderBlocks(container, blocks, steps, useFlats) {
+    container.innerHTML = "";
+    blocks.forEach(function (b) {
       if (b.type === "space") {
         const d = document.createElement("div"); d.className = "spacer";
-        sheetEl.appendChild(d); return;
+        container.appendChild(d); return;
       }
       if (b.type === "label") {
         const d = document.createElement("div"); d.className = "section-label";
-        d.textContent = b.text; sheetEl.appendChild(d); return;
+        d.textContent = b.text; container.appendChild(d); return;
       }
       const lineEl = document.createElement("div");
       lineEl.className = "line";
@@ -208,7 +356,7 @@
         pair.appendChild(lyric);
         lineEl.appendChild(pair);
       });
-      sheetEl.appendChild(lineEl);
+      container.appendChild(lineEl);
     });
   }
 
@@ -295,6 +443,100 @@
   }
   function closeChord() { overlayEl.classList.remove("show"); }
 
+  // ---- Import --------------------------------------------------------------
+  function impEl(id) { return $(id); }
+
+  function openImport() {
+    ["impTitle", "impArtist", "impKey", "impText"].forEach(function (id) {
+      impEl(id).value = "";
+    });
+    impEl("impCapo").value = "";
+    impEl("impPreview").innerHTML = "";
+    impEl("impHint").textContent =
+      "Paste a chart — chords above lyrics, or ChordPro. Nothing leaves this device.";
+    $("importOverlay").classList.add("show");
+    impEl("impText").focus();
+  }
+  function closeImport() { $("importOverlay").classList.remove("show"); }
+
+  // Pull "Title - Artist" off the top of a pasted chart, if it's there.
+  function guessMeta(text) {
+    const first = (text.split("\n")[0] || "").trim();
+    const m = first.match(/^(.{1,60}?)\s+[-–—]\s+(.{1,60})$/);
+    if (!m) return null;
+    if (isChordLine(first) || sectionName(first)) return null;
+    return { title: m[1].trim(), artist: m[2].trim() };
+  }
+
+  // If the first line was read as "Title - Artist", it isn't part of the chart.
+  function bodyFromPaste(text) {
+    let t = text;
+    if (guessMeta(t)) t = t.split("\n").slice(1).join("\n");
+    return importToBody(t);
+  }
+
+  function refreshImportPreview() {
+    const raw = impEl("impText").value;
+    const body = bodyFromPaste(raw);
+    const blocks = parseSong(body);
+    const key = impEl("impKey").value.trim();
+    renderBlocks(impEl("impPreview"), blocks, 0, FLAT_KEYS.has(key));
+    const lines = blocks.filter(function (b) { return b.type === "line"; }).length;
+    const chords = body.match(/\[[^\]]+\]/g);
+    impEl("impHint").textContent = raw.trim()
+      ? lines + " lines · " + (chords ? chords.length : 0) + " chords · " +
+        (looksLikeChordPro(raw) ? "ChordPro" : "chords-above-lyrics") + " detected"
+      : "Paste a chart — chords above lyrics, or ChordPro. Nothing leaves this device.";
+  }
+
+  function saveImport() {
+    const title = impEl("impTitle").value.trim();
+    const body = bodyFromPaste(impEl("impText").value);
+    if (!title) { impEl("impHint").textContent = "Give it a title first."; return; }
+    if (!body) { impEl("impHint").textContent = "Nothing to import — paste a chart."; return; }
+    const entry = {
+      title: title,
+      artist: impEl("impArtist").value.trim(),
+      key: impEl("impKey").value.trim(),
+      capo: parseInt(impEl("impCapo").value, 10) || 0,
+      body: body
+    };
+    const id = (entry.title + "|" + entry.artist).toLowerCase();
+    const list = loadUserSongs().filter(function (s) {
+      return (s.title + "|" + s.artist).toLowerCase() !== id;
+    });
+    list.push(entry);
+    saveUserSongs(list);
+    buildSongs();
+    closeImport();
+    renderLibrary("");
+    searchEl.value = "";
+    const added = songs.findIndex(function (s) { return s.id === id; });
+    if (added >= 0) openSong(added);
+  }
+
+  // Export your imported songs as a songs.js-ready snippet.
+  function exportMine() {
+    const mine = loadUserSongs();
+    if (!mine.length) { impEl("impHint").textContent = "No imported songs yet."; return; }
+    const text = mine.map(function (s) {
+      return "  {\n" +
+        "    title: " + JSON.stringify(s.title) + ",\n" +
+        "    artist: " + JSON.stringify(s.artist || "") + ",\n" +
+        "    key: " + JSON.stringify(s.key || "") + ",\n" +
+        "    capo: " + (s.capo || 0) + ",\n" +
+        "    body: `" + String(s.body).replace(/\\/g, "\\\\").replace(/`/g, "\\`").replace(/\$\{/g, "\\${") + "`\n" +
+        "  }";
+    }).join(",\n");
+    const blob = new Blob([text], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "my-songs.txt";
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    impEl("impHint").textContent = "Exported " + mine.length + " song(s).";
+  }
+
   // ---- Theme ---------------------------------------------------------------
   function applyTheme() { document.documentElement.classList.toggle("light", !dark); }
 
@@ -339,6 +581,21 @@
 
     searchEl.addEventListener("input", function () { renderLibrary(searchEl.value); });
 
+    // Import
+    $("importBtn").addEventListener("click", openImport);
+    $("importClose").addEventListener("click", closeImport);
+    $("impSave").addEventListener("click", saveImport);
+    $("impExport").addEventListener("click", exportMine);
+    $("impKey").addEventListener("input", refreshImportPreview);
+    impEl("impText").addEventListener("input", function () {
+      const g = !impEl("impTitle").value.trim() && guessMeta(impEl("impText").value);
+      if (g) { impEl("impTitle").value = g.title; impEl("impArtist").value = g.artist; }
+      refreshImportPreview();
+    });
+    $("importOverlay").addEventListener("click", function (e) {
+      if (e.target === $("importOverlay")) closeImport();
+    });
+
     // Swipe left/right to change songs
     let sx = 0, sy = 0, tracking = false;
     sheetEl.addEventListener("touchstart", function (e) {
@@ -355,6 +612,11 @@
     }, { passive: true });
 
     document.addEventListener("keydown", function (e) {
+      // While importing, keep the keyboard to the form.
+      if ($("importOverlay").classList.contains("show")) {
+        if (e.key === "Escape") closeImport();
+        return;
+      }
       if (overlayEl.classList.contains("show")) { closeChord(); return; }
       if (current < 0) return;
       if (e.key === "ArrowRight") nextSong();

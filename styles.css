@@ -90,6 +90,26 @@ body { height: 100dvh; overflow: hidden; }
   padding-bottom: calc(20px + var(--safe-b));
 }
 
+/* Imported songs get a remove button tucked into the card's corner. */
+.song-row { position: relative; display: flex; }
+.song-row .song-card { flex: 1; }
+.song-del {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.65;
+}
+.song-del:hover { opacity: 1; color: var(--text); }
+
 .song-card {
   text-align: left;
   background: var(--card);
@@ -264,6 +284,82 @@ body { height: 100dvh; overflow: hidden; }
 }
 
 /* ===================== CHORD DIAGRAM OVERLAY ===================== */
+/* ===================== IMPORT ===================== */
+.lib-header .lib-action { margin-left: auto; height: 34px; font-size: 14px; }
+
+#importOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 8, 12, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: calc(12px + var(--safe-t)) 12px calc(12px + var(--safe-b));
+}
+#importOverlay.show { display: flex; }
+
+.import-panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  width: min(720px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  animation: pop .16s ease-out;
+}
+.import-head { display: flex; align-items: center; justify-content: space-between; }
+.import-head strong { font-size: 17px; }
+
+.import-fields { display: grid; grid-template-columns: 2fr 2fr 1fr 1fr; gap: 8px; }
+.import-fields input,
+#impText {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+}
+#impText {
+  min-height: 130px;
+  resize: vertical;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+.import-hint { color: var(--muted); font-size: 12.5px; min-height: 16px; }
+
+.import-preview {
+  flex: 1;
+  min-height: 90px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  padding: 12px;
+  --sheet-font: 17px;
+}
+.import-preview:empty { display: none; }
+
+.import-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #17181d; }
+
+@media (max-width: 560px) {
+  .import-fields { grid-template-columns: 1fr 1fr; }
+}
+
 #chordOverlay {
   position: fixed;
   inset: 0;
