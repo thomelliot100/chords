@@ -651,6 +651,92 @@
     if (added >= 0) openSong(added);
   }
 
+  // ---- Backup / restore ----------------------------------------------------
+  // A whole-songbook file you can move between devices by AirDrop, email, or
+  // a cloud folder. Local storage is per-device, so this is the only way an
+  // imported song reaches your phone without going through the repo.
+  const BACKUP_FORMAT = "songbook";
+  const BACKUP_VERSION = 1;
+
+  function download(name, text, type) {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([text], { type: type || "text/plain" }));
+    a.download = name;
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  function exportBackup() {
+    const mine = loadUserSongs();
+    const hidden = loadHidden();
+    if (!mine.length && !hidden.length) {
+      impEl("impHint").textContent = "Nothing to back up yet — no imported songs.";
+      return;
+    }
+    const payload = {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exported: new Date().toISOString(),
+      songs: mine,
+      hidden: hidden
+    };
+    const stamp = payload.exported.slice(0, 10);
+    download("songbook-" + stamp + ".json", JSON.stringify(payload, null, 2), "application/json");
+    impEl("impHint").textContent =
+      "Backed up " + mine.length + " song(s)" +
+      (hidden.length ? " and " + hidden.length + " hidden" : "") +
+      ". Open this file on your other device and hit Restore.";
+  }
+
+  function restoreBackup(file) {
+    return file.text().then(function (text) {
+      let data;
+      try { data = JSON.parse(text); }
+      catch (e) { throw new Error("that isn't a valid backup file"); }
+      if (!data || data.format !== BACKUP_FORMAT || !Array.isArray(data.songs)) {
+        throw new Error("that isn't a songbook backup");
+      }
+      if (data.version > BACKUP_VERSION) {
+        throw new Error("that backup was made by a newer version of the app");
+      }
+      // Merge rather than replace, so restoring never silently drops songs
+      // that only exist on this device.
+      const existing = loadUserSongs();
+      const byKey = {};
+      existing.forEach(function (s) { byKey[songKey(s)] = s; });
+      let added = 0, updated = 0;
+      data.songs.forEach(function (s) {
+        if (!s || !s.title) return;
+        const entry = {
+          title: s.title,
+          artist: s.artist || "",
+          key: s.key || "",
+          capo: s.capo || 0,
+          body: s.body || ""
+        };
+        if (byKey[songKey(entry)]) updated++; else added++;
+        byKey[songKey(entry)] = entry;
+      });
+      const merged = Object.keys(byKey).map(function (k) { return byKey[k]; });
+      saveUserSongs(merged);
+
+      if (Array.isArray(data.hidden)) {
+        const hidden = loadHidden();
+        data.hidden.forEach(function (id) {
+          if (typeof id === "string" && hidden.indexOf(id) === -1) hidden.push(id);
+        });
+        saveHidden(hidden);
+      }
+      buildSongs();
+      renderLibrary("");
+      searchEl.value = "";
+      impEl("impHint").textContent =
+        "Restored: " + added + " added, " + updated + " updated.";
+    }).catch(function (err) {
+      impEl("impHint").textContent = "Couldn't restore: " + (err && err.message ? err.message : err);
+    });
+  }
+
   // Export your imported songs as a songs.js-ready snippet.
   function exportMine() {
     const mine = loadUserSongs();
@@ -728,6 +814,13 @@
     $("importClose").addEventListener("click", closeImport);
     $("impSave").addEventListener("click", saveImport);
     $("impExport").addEventListener("click", exportMine);
+    $("impBackup").addEventListener("click", exportBackup);
+    $("impRestore").addEventListener("click", function () { $("impBackupFile").click(); });
+    $("impBackupFile").addEventListener("change", function (e) {
+      const f = e.target.files && e.target.files[0];
+      if (f) restoreBackup(f);
+      e.target.value = "";
+    });
     $("impKey").addEventListener("input", refreshImportPreview);
 
     // File picker + drag-and-drop onto the paste box

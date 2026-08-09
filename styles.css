@@ -380,7 +380,19 @@ body { height: 100dvh; overflow: hidden; }
 }
 .import-preview:empty { display: none; }
 
-.import-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.import-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.linkish {
+  align-self: flex-end;
+  background: none;
+  border: 0;
+  padding: 2px 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.linkish:hover { color: var(--text); }
 .btn.primary { background: var(--accent); border-color: var(--accent); color: #17181d; }
 
 @media (max-width: 560px) {

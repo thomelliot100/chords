@@ -97,9 +97,12 @@
       <div class="import-hint" id="impHint"></div>
       <div class="import-preview" id="impPreview"></div>
       <div class="import-actions">
-        <button class="btn" id="impExport">Export mine</button>
+        <button class="btn" id="impBackup" title="Save all your imported songs to a file">⤓ Backup</button>
+        <button class="btn" id="impRestore" title="Load a backup file from another device">⤒ Restore</button>
+        <input id="impBackupFile" type="file" accept=".json,application/json" hidden />
         <button class="btn primary" id="impSave">Add to songbook</button>
       </div>
+      <button class="linkish" id="impExport">or export as a songs.js snippet</button>
     </div>
   </div>
 
