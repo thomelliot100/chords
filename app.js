@@ -557,17 +557,27 @@
     });
   }
 
+  // Remembered so that pressing "Add to songbook" after a failed read repeats
+  // the real reason instead of replacing it with a generic "nothing to import".
+  let lastFileProblem = "";
+
+  function setHint(msg, isProblem) {
+    impEl("impHint").textContent = msg;
+    impEl("impHint").classList.toggle("problem", !!isProblem);
+  }
+
   function readDroppedFile(file) {
     const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
-    impEl("impHint").textContent = isPdf
-      ? "Reading " + file.name + "…"
-      : "Reading " + file.name + "…";
+    lastFileProblem = "";
+    setHint("Reading " + file.name + "…", false);
     const job = isPdf ? readPdf(file) : file.text();
     return job.then(function (text) {
       if (isPdf && text.replace(/\s/g, "").length < 40) {
-        impEl("impHint").textContent =
-          "That PDF has no text layer — it's probably a scan or an image. " +
-          "Text-based PDFs work; scans would need OCR, which isn't built in.";
+        lastFileProblem =
+          "“" + file.name + "” is a scan — the pages are images, with no text " +
+          "to pull out. Nothing can be imported from it. Use a text-based PDF, " +
+          "or paste/type the chart into the box above.";
+        setHint(lastFileProblem, true);
         return;
       }
       impEl("impText").value = text;
@@ -575,7 +585,9 @@
       if (g) { impEl("impTitle").value = g.title; impEl("impArtist").value = g.artist; }
       refreshImportPreview();
     }).catch(function (err) {
-      impEl("impHint").textContent = "Couldn't read that file: " + (err && err.message ? err.message : err);
+      lastFileProblem = "Couldn't read “" + file.name + "”: " +
+        (err && err.message ? err.message : err);
+      setHint(lastFileProblem, true);
     });
   }
 
@@ -619,17 +631,24 @@
     renderBlocks(impEl("impPreview"), blocks, 0, FLAT_KEYS.has(key));
     const lines = blocks.filter(function (b) { return b.type === "line"; }).length;
     const chords = body.match(/\[[^\]]+\]/g);
-    impEl("impHint").textContent = raw.trim()
+    if (raw.trim()) lastFileProblem = ""; // they've typed something, so move on
+    setHint(raw.trim()
       ? lines + " lines · " + (chords ? chords.length : 0) + " chords · " +
         (looksLikeChordPro(raw) ? "ChordPro" : "chords-above-lyrics") + " detected"
-      : "Paste a chart — chords above lyrics, or ChordPro. Nothing leaves this device.";
+      : (lastFileProblem ||
+         "Paste a chart — chords above lyrics, or ChordPro. Nothing leaves this device."),
+      !raw.trim() && !!lastFileProblem);
   }
 
   function saveImport() {
     const title = impEl("impTitle").value.trim();
     const body = bodyFromPaste(impEl("impText").value);
-    if (!title) { impEl("impHint").textContent = "Give it a title first."; return; }
-    if (!body) { impEl("impHint").textContent = "Nothing to import — paste a chart."; return; }
+    if (!title) { setHint("Give it a title first.", true); return; }
+    if (!body) {
+      // Don't bury the reason a file failed behind a generic message.
+      setHint(lastFileProblem || "Nothing to import — paste a chart.", true);
+      return;
+    }
     const entry = {
       title: title,
       artist: impEl("impArtist").value.trim(),

@@ -367,6 +367,12 @@ body { height: 100dvh; overflow: hidden; }
 #impText.dropping { border-color: var(--accent); background: var(--card); }
 
 .import-hint { color: var(--muted); font-size: 12.5px; min-height: 16px; }
+/* A file that couldn't be read is a real answer, not background chatter. */
+.import-hint.problem {
+  color: var(--accent);
+  font-weight: 600;
+  line-height: 1.4;
+}
 
 .import-preview {
   flex: 1;
