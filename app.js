@@ -192,6 +192,16 @@
   }
   function saveUserSongs(list) { store.set("userSongs", list); }
 
+  // Built-in songs live in songs.js, which is part of the repo — deleting one
+  // hides it on this device rather than editing the file, so it stays
+  // recoverable and a rebuild never resurrects it silently.
+  function loadHidden() {
+    const list = store.get("hiddenSongs", []);
+    return Array.isArray(list) ? list : [];
+  }
+  function saveHidden(list) { store.set("hiddenSongs", list); }
+  function songKey(s) { return ((s.title || "") + "|" + (s.artist || "")).toLowerCase(); }
+
   function makeSong(s, i) {
     return {
       id: (s.title + "|" + s.artist).toLowerCase(),
@@ -208,13 +218,17 @@
 
   let songs = [];
   function buildSongs() {
+    const hidden = loadHidden();
     const mine = loadUserSongs().map(function (s) {
       return {
         title: s.title, artist: s.artist, key: s.key,
         capo: s.capo, body: s.body, custom: true
       };
     });
-    songs = (window.SONGS || []).concat(mine).map(makeSong);
+    // Filter before mapping so song.index still matches its slot in songs[].
+    songs = (window.SONGS || []).concat(mine)
+      .filter(function (s) { return hidden.indexOf(songKey(s)) === -1; })
+      .map(makeSong);
   }
   buildSongs();
 
@@ -262,22 +276,29 @@
       card.querySelector(".song-card-key").textContent = song.key ? "Key " + song.key : "";
       card.addEventListener("click", function () { openSong(song.index); });
       row.appendChild(card);
-      if (song.custom) {
-        const del = document.createElement("button");
-        del.className = "song-del";
-        del.textContent = "✕";
-        del.setAttribute("aria-label", "Remove " + song.title);
-        del.addEventListener("click", function (e) {
-          e.stopPropagation();
-          if (!window.confirm("Remove “" + song.title + "” from your songbook?")) return;
+      const del = document.createElement("button");
+      del.className = "song-del";
+      del.textContent = "✕";
+      del.setAttribute("aria-label", "Remove " + song.title);
+      del.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const msg = song.custom
+          ? "Delete “" + song.title + "”? It was imported on this device, so this can't be undone."
+          : "Remove “" + song.title + "” from your songbook? You can restore it later.";
+        if (!window.confirm(msg)) return;
+        if (song.custom) {
           saveUserSongs(loadUserSongs().filter(function (s) {
-            return (s.title + "|" + s.artist).toLowerCase() !== song.id;
+            return songKey(s) !== song.id;
           }));
-          buildSongs();
-          renderLibrary(searchEl.value);
-        });
-        row.appendChild(del);
-      }
+        } else {
+          const hidden = loadHidden();
+          if (hidden.indexOf(song.id) === -1) hidden.push(song.id);
+          saveHidden(hidden);
+        }
+        buildSongs();
+        renderLibrary(searchEl.value);
+      });
+      row.appendChild(del);
       songListEl.appendChild(row);
     });
     if (shown === 0) {
@@ -292,6 +313,12 @@
     if (countEl) {
       const mine = songs.filter(function (s) { return s.custom; }).length;
       countEl.textContent = songs.length + " songs" + (mine ? " · " + mine + " yours" : "");
+    }
+    const restoreEl = $("restoreBtn");
+    if (restoreEl) {
+      const n = loadHidden().length;
+      restoreEl.textContent = "Restore " + n + " hidden";
+      restoreEl.classList.toggle("hidden", n === 0);
     }
   }
 
@@ -689,6 +716,12 @@
     overlayEl.addEventListener("click", closeChord);
 
     searchEl.addEventListener("input", function () { renderLibrary(searchEl.value); });
+
+    $("restoreBtn").addEventListener("click", function () {
+      saveHidden([]);
+      buildSongs();
+      renderLibrary(searchEl.value);
+    });
 
     // Import
     $("importBtn").addEventListener("click", openImport);
