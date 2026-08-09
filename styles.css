@@ -245,6 +245,11 @@ body { height: 100dvh; overflow: hidden; }
   white-space: pre-wrap;
   line-height: 1.25;
 }
+/* A chord with no lyric under it (e.g. a trailing [C] at the end of a line)
+   leaves an empty lyric span with zero height, and bottom-alignment then drops
+   the chord onto the lyric baseline. Give the empty span a zero-width character
+   so the column keeps both rows and the chord stays up in the chord row. */
+.lyric:empty::after { content: "\200B"; }
 
 /* Landscape: give lyrics room and keep toolbar tight */
 @media (orientation: landscape) {
