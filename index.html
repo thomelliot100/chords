@@ -7,6 +7,7 @@
   <meta name="theme-color" content="#12141a" />
 
   <!-- Add-to-home-screen (iOS) -->
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="Songbook" />
@@ -67,7 +68,14 @@
     <div id="sheet"></div>
   </section>
 
+  <!-- ===================== CHORD DIAGRAM OVERLAY ===================== -->
+  <div id="chordOverlay" aria-hidden="true">
+    <div id="chordOverlayBody"></div>
+    <div class="chord-hint">tap to close</div>
+  </div>
+
   <script src="songs.js"></script>
+  <script src="chords.js"></script>
   <script src="app.js"></script>
   <script>
     // Show song count once loaded

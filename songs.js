@@ -189,6 +189,52 @@ Even if we're just [Am]dancing in the [G]dark [C]
 {c: Outro}
 Even if we're just [Am]dancing in the [G]dark [C]   (x2)
 [G]Hey baby`
+  },
+
+  {
+    // Chord chart / arrangement. Paste your own lyric lines between the
+    // chord lines if you want the words on screen too — see README.
+    title: "Torn",
+    artist: "Natalie Imbruglia",
+    key: "F",
+    capo: 0,
+    body: `{c: Intro}
+[F] [Fsus4] [F] [Fsus2]
+
+{c: Verse 1}
+[F] . . . | [Am] . . . | [Bb7] . . . |
+[F] . . . | [Am] . . . | [Bb7] . . . |
+
+{c: Pre-Chorus}
+[Dm] . . . | [C] . . . | [Am] . . . | [C] . . [F] . |
+
+{c: Chorus}
+[C] . . . | [Dm] . . . | [Bb] . . . | [F] . . . |
+[C] . . . | [Dm] . . . | [Bb] . . [F] . |
+[C] . . . | [Dm] . [Bb] . |
+
+{c: Verse 2}
+[F] . . . | [Am] . . . | [Bb7] . . . |
+
+{c: Pre-Chorus}
+[Dm] . . . | [C] . . . | [Am] . . . | [C] . . [F] . |
+
+{c: Chorus}
+[C] . . . | [Dm] . . . | [Bb] . . . | [F] . . . |
+[C] . . . | [Dm] . . . | [Bb] . . [F] . |
+[C] . . . | [Dm] . [Bb] . |
+
+{c: Pre-Chorus 2}
+[Dm] [F] [C] | [Dm] . . . | [C] . . . | [Am] . . [C] . | [F] . . . |
+
+{c: Chorus (x2)}
+[C] . . . | [Dm] . . . | [Bb] . . . | [F] . . . |
+[C] . . . | [Dm] . . . | [Bb] . . [F] . |
+[C] . . . | [Dm] . [Bb] . |
+
+{c: Outro}
+[F] [C] [Dm] [Bb]   (x3)
+[F] [C]`
   }
 ];
 

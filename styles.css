@@ -9,7 +9,7 @@
   --accent: #ffb23e;      /* warm amber — chords */
   --accent-2: #4fd1c5;    /* teal — active */
   --line: #2c3040;
-  --sheet-font: 20px;
+  --sheet-font: 27px;
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
@@ -230,16 +230,20 @@ body { height: 100dvh; overflow: hidden; }
 .chord {
   color: var(--accent);
   font-weight: 700;
-  font-size: calc(var(--sheet-font) * 0.82);
+  font-size: calc(var(--sheet-font) * 0.8);
   line-height: 1.05;
   height: calc(var(--sheet-font) * 0.95);
   white-space: pre;
+  cursor: pointer;
 }
 /* Guarantee a gap after every chord so chord-only lines never collide,
    while lyric syllables still set the column width when present. */
 .chord:not(:empty) { padding-right: 0.55em; }
+/* Subtle tap affordance so it's clear chords are interactive */
+.chord:not(:empty):active { color: var(--accent-2); }
 .lyric {
   white-space: pre-wrap;
+  line-height: 1.25;
 }
 
 /* Landscape: give lyrics room and keep toolbar tight */
@@ -253,3 +257,53 @@ body { height: 100dvh; overflow: hidden; }
   .group .label, .speed-wrap .label { display: none; }
   #speedInput { width: 70px; }
 }
+
+/* ===================== CHORD DIAGRAM OVERLAY ===================== */
+#chordOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(6, 8, 12, 0.72);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: calc(12px + var(--safe-t)) 12px calc(12px + var(--safe-b));
+}
+#chordOverlay.show { display: flex; }
+
+#chordOverlayBody {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 18px 24px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  animation: pop .16s ease-out;
+}
+@keyframes pop { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.chord-name {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+}
+.chord-hint { color: var(--muted); font-size: 13px; }
+
+.chord-svg { width: 150px; height: 190px; }
+.chord-svg .cd-line { stroke: var(--muted); stroke-width: 1.6; }
+.chord-svg .cd-nut { stroke: var(--text); stroke-width: 5; stroke-linecap: round; }
+.chord-svg .cd-dot { fill: var(--accent); }
+.chord-svg .cd-barre { fill: var(--accent); }
+.chord-svg .cd-finger { fill: #12141a; font-size: 11px; font-weight: 700; }
+.chord-svg .cd-open { fill: none; stroke: var(--text); stroke-width: 1.6; }
+.chord-svg .cd-x { fill: var(--muted); font-size: 14px; font-weight: 700; }
+.chord-svg .cd-fretlabel { fill: var(--muted); font-size: 12px; font-weight: 600; }
+.chord-svg .cd-noshape { fill: var(--muted); font-size: 13px; }

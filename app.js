@@ -2,7 +2,9 @@
    Guitar Songbook — app logic
    - ChordPro parsing + rendering (chords sit above lyrics)
    - Transpose (per song, remembered)
-   - Auto-scroll with adjustable speed, tap to pause
+   - Auto-scroll with adjustable speed
+   - Tap to page forward (top of screen = page back)
+   - Tap a chord to see its fingering diagram
    - Swipe left/right between songs
    - Font size, dark/light, offline (see sw.js)
    ============================================================ */
@@ -19,17 +21,15 @@
     let i = SHARP.indexOf(note);
     if (i >= 0) return i;
     i = FLAT.indexOf(note);
-    return i; // -1 if not found
+    return i;
   }
 
-  // Transpose a single chord token like "G", "Am7", "D/F#", "Cadd9"
   function transposeChord(chord, steps, useFlats) {
     if (!chord) return chord;
-    // Slash chord: transpose both parts
     const slash = chord.split("/");
     const out = slash.map(function (part) {
       const m = part.match(/^([A-G][#b]?)(.*)$/);
-      if (!m) return part; // not a chord (e.g. "N.C.")
+      if (!m) return part;
       const root = m[1];
       const suffix = m[2];
       let idx = noteIndex(root);
@@ -42,7 +42,6 @@
   }
 
   // ---- ChordPro parsing ----------------------------------------------------
-  // A line becomes an array of { chord, text } cells. Chord may be "".
   function parseLine(line) {
     const cells = [];
     const re = /\[([^\]]*)\]/g;
@@ -65,23 +64,14 @@
     return cells;
   }
 
-  // Parse a whole song body into a list of blocks.
   function parseSong(body) {
     const lines = body.replace(/\r\n/g, "\n").split("\n");
     const blocks = [];
-    lines.forEach(function (raw) {
-      const line = raw;
+    lines.forEach(function (line) {
       const dir = line.match(/^\s*\{\s*(c|comment)\s*:\s*(.*?)\s*\}\s*$/i);
-      if (dir) {
-        blocks.push({ type: "label", text: dir[2] });
-        return;
-      }
-      // ignore other unknown {directives}
+      if (dir) { blocks.push({ type: "label", text: dir[2] }); return; }
       if (/^\s*\{.*\}\s*$/.test(line)) return;
-      if (line.trim() === "") {
-        blocks.push({ type: "space" });
-        return;
-      }
+      if (line.trim() === "") { blocks.push({ type: "space" }); return; }
       blocks.push({ type: "line", cells: parseLine(line) });
     });
     return blocks;
@@ -108,11 +98,11 @@
     };
   });
 
-  let current = -1;                       // index into songs, -1 = library view
-  let fontSize = store.get("fontSize", 20);
+  let current = -1;
+  let fontSize = store.get("fontSize", 27);
   let dark = store.get("dark", true);
   let scrolling = false;
-  let scrollSpeed = store.get("scrollSpeed", 3); // 1..10
+  let scrollSpeed = store.get("scrollSpeed", 3);
   let rafId = null;
   let scrollAccum = 0;
 
@@ -128,6 +118,8 @@
   const speedInput = $("speedInput");
   const playBtn = $("playBtn");
   const searchEl = $("search");
+  const overlayEl = $("chordOverlay");
+  const overlayBody = $("chordOverlayBody");
 
   // ---- Library rendering ---------------------------------------------------
   function renderLibrary(filter) {
@@ -160,22 +152,27 @@
   }
 
   // ---- Song rendering ------------------------------------------------------
-  function transposeFor(song) {
-    return store.get("t:" + song.id, 0);
-  }
-  function setTransposeFor(song, val) {
-    store.set("t:" + song.id, val);
+  function transposeFor(song) { return store.get("t:" + song.id, 0); }
+  function setTransposeFor(song, val) { store.set("t:" + song.id, val); }
+
+  function transposeKey(key, steps) {
+    if (!key) return "";
+    const m = key.match(/^([A-G][#b]?)(.*)$/);
+    if (!m) return key;
+    const minor = /m/.test(m[2]) ? "m" : "";
+    const useFlats = FLAT_KEYS.has(key);
+    return transposeChord(m[1], steps, useFlats) + minor;
   }
 
   function renderSong() {
     const song = songs[current];
     if (!song) return;
     const steps = transposeFor(song);
-    const useFlats = FLAT_KEYS.has(transposeKey(song.key, steps)) || (steps === 0 && FLAT_KEYS.has(song.key));
+    const shownKey = transposeKey(song.key, steps);
+    const useFlats = FLAT_KEYS.has(shownKey) || (steps === 0 && FLAT_KEYS.has(song.key));
 
     titleEl.textContent = song.title;
     let meta = song.artist || "";
-    const shownKey = transposeKey(song.key, steps);
     if (shownKey) meta += (meta ? "  ·  " : "") + "Key " + shownKey;
     if (song.capo) meta += "  ·  Capo " + song.capo;
     metaEl.textContent = meta;
@@ -184,17 +181,12 @@
     sheetEl.innerHTML = "";
     song.blocks.forEach(function (b) {
       if (b.type === "space") {
-        const d = document.createElement("div");
-        d.className = "spacer";
-        sheetEl.appendChild(d);
-        return;
+        const d = document.createElement("div"); d.className = "spacer";
+        sheetEl.appendChild(d); return;
       }
       if (b.type === "label") {
-        const d = document.createElement("div");
-        d.className = "section-label";
-        d.textContent = b.text;
-        sheetEl.appendChild(d);
-        return;
+        const d = document.createElement("div"); d.className = "section-label";
+        d.textContent = b.text; sheetEl.appendChild(d); return;
       }
       const lineEl = document.createElement("div");
       lineEl.className = "line";
@@ -203,7 +195,12 @@
         pair.className = "pair";
         const chord = document.createElement("span");
         chord.className = "chord";
-        chord.textContent = cell.chord ? transposeChord(cell.chord, steps, useFlats) : "";
+        if (cell.chord) {
+          const name = transposeChord(cell.chord, steps, useFlats);
+          chord.textContent = name;
+          chord.dataset.chord = name;
+          chord.setAttribute("role", "button");
+        }
         const lyric = document.createElement("span");
         lyric.className = "lyric";
         lyric.textContent = cell.text.length ? cell.text : "";
@@ -213,15 +210,6 @@
       });
       sheetEl.appendChild(lineEl);
     });
-  }
-
-  function transposeKey(key, steps) {
-    if (!key) return "";
-    const m = key.match(/^([A-G][#b]?)(.*)$/);
-    if (!m) return key;
-    const minor = /m/.test(m[2]) ? "m" : "";
-    const useFlats = FLAT_KEYS.has(key);
-    return transposeChord(m[1], steps, useFlats) + minor;
   }
 
   // ---- Navigation ----------------------------------------------------------
@@ -235,30 +223,20 @@
     sheetEl.scrollTop = 0;
     applyFont();
   }
-
   function backToLibrary() {
-    stopScroll();
+    stopScroll(); closeChord();
     current = -1;
     viewerEl.classList.add("hidden");
     libraryEl.classList.remove("hidden");
   }
+  function nextSong() { if (current >= 0 && current < songs.length - 1) openSong(current + 1); }
+  function prevSong() { if (current > 0) openSong(current - 1); }
 
-  function nextSong() {
-    if (current < 0) return;
-    if (current < songs.length - 1) openSong(current + 1);
-  }
-  function prevSong() {
-    if (current < 0) return;
-    if (current > 0) openSong(current - 1);
-  }
-
-  // ---- Transpose controls --------------------------------------------------
+  // ---- Transpose -----------------------------------------------------------
   function bumpTranspose(delta) {
-    const song = songs[current];
-    if (!song) return;
+    const song = songs[current]; if (!song) return;
     let t = transposeFor(song) + delta;
-    if (t > 11) t = 11;
-    if (t < -11) t = -11;
+    if (t > 11) t = 11; if (t < -11) t = -11;
     setTransposeFor(song, t);
     renderSong();
   }
@@ -268,29 +246,32 @@
     document.documentElement.style.setProperty("--sheet-font", fontSize + "px");
   }
   function bumpFont(delta) {
-    fontSize = Math.max(12, Math.min(40, fontSize + delta));
+    fontSize = Math.max(14, Math.min(56, fontSize + delta));
     store.set("fontSize", fontSize);
     applyFont();
+  }
+
+  // ---- Paging (tap) --------------------------------------------------------
+  function pageBy(dir) {
+    const amount = Math.max(60, sheetEl.clientHeight * 0.82) * dir;
+    sheetEl.scrollBy({ top: amount, behavior: "smooth" });
   }
 
   // ---- Auto-scroll ---------------------------------------------------------
   function tick() {
     if (!scrolling) return;
-    // pixels per frame scale with speed (1..10). ~0.15px/frame at speed 1.
     scrollAccum += scrollSpeed * 0.18;
     if (scrollAccum >= 1) {
       const whole = Math.floor(scrollAccum);
       sheetEl.scrollTop += whole;
       scrollAccum -= whole;
     }
-    const atBottom = sheetEl.scrollTop + sheetEl.clientHeight >= sheetEl.scrollHeight - 1;
-    if (atBottom) { stopScroll(); return; }
+    if (sheetEl.scrollTop + sheetEl.clientHeight >= sheetEl.scrollHeight - 1) { stopScroll(); return; }
     rafId = requestAnimationFrame(tick);
   }
   function startScroll() {
     if (scrolling) return;
-    scrolling = true;
-    scrollAccum = 0;
+    scrolling = true; scrollAccum = 0;
     playBtn.classList.add("playing");
     playBtn.setAttribute("aria-label", "Pause auto-scroll");
     rafId = requestAnimationFrame(tick);
@@ -304,12 +285,20 @@
   }
   function toggleScroll() { scrolling ? stopScroll() : startScroll(); }
 
-  // ---- Theme ---------------------------------------------------------------
-  function applyTheme() {
-    document.documentElement.classList.toggle("light", !dark);
+  // ---- Chord diagram overlay ----------------------------------------------
+  function openChord(name) {
+    overlayBody.innerHTML =
+      '<div class="chord-name"></div>' +
+      (window.chordDiagramSVG ? window.chordDiagramSVG(name) : "");
+    overlayBody.querySelector(".chord-name").textContent = name;
+    overlayEl.classList.add("show");
   }
+  function closeChord() { overlayEl.classList.remove("show"); }
 
-  // ---- Wire up controls ----------------------------------------------------
+  // ---- Theme ---------------------------------------------------------------
+  function applyTheme() { document.documentElement.classList.toggle("light", !dark); }
+
+  // ---- Init ----------------------------------------------------------------
   function init() {
     applyTheme();
     applyFont();
@@ -320,8 +309,8 @@
     $("nextBtn").addEventListener("click", nextSong);
     $("transDown").addEventListener("click", function () { bumpTranspose(-1); });
     $("transUp").addEventListener("click", function () { bumpTranspose(1); });
-    $("fontDown").addEventListener("click", function () { bumpFont(-2); });
-    $("fontUp").addEventListener("click", function () { bumpFont(2); });
+    $("fontDown").addEventListener("click", function () { bumpFont(-3); });
+    $("fontUp").addEventListener("click", function () { bumpFont(3); });
     $("themeBtn").addEventListener("click", function () {
       dark = !dark; store.set("dark", dark); applyTheme();
     });
@@ -332,41 +321,51 @@
       store.set("scrollSpeed", scrollSpeed);
     });
 
-    // Tap the sheet to pause/resume (but not while selecting text via buttons)
-    sheetEl.addEventListener("click", function () {
-      if (scrolling) stopScroll();
+    // Sheet tap: chord -> diagram; else page (or pause auto-scroll)
+    sheetEl.addEventListener("click", function (e) {
+      const chordEl = e.target.closest(".chord");
+      if (chordEl && chordEl.dataset.chord) {
+        openChord(chordEl.dataset.chord);
+        return;
+      }
+      if (scrolling) { stopScroll(); return; }
+      const rect = sheetEl.getBoundingClientRect();
+      const rel = (e.clientY - rect.top) / rect.height;
+      pageBy(rel < 0.22 ? -1 : 1);
     });
+
+    // Overlay: tap anywhere to close
+    overlayEl.addEventListener("click", closeChord);
 
     searchEl.addEventListener("input", function () { renderLibrary(searchEl.value); });
 
-    // Swipe left/right on the sheet to change songs
+    // Swipe left/right to change songs
     let sx = 0, sy = 0, tracking = false;
     sheetEl.addEventListener("touchstart", function (e) {
       if (e.touches.length !== 1) { tracking = false; return; }
       sx = e.touches[0].clientX; sy = e.touches[0].clientY; tracking = true;
     }, { passive: true });
     sheetEl.addEventListener("touchend", function (e) {
-      if (!tracking) return;
-      tracking = false;
+      if (!tracking) return; tracking = false;
       const t = e.changedTouches[0];
-      const dx = t.clientX - sx;
-      const dy = t.clientY - sy;
+      const dx = t.clientX - sx, dy = t.clientY - sy;
       if (Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.8) {
         if (dx < 0) nextSong(); else prevSong();
       }
     }, { passive: true });
 
-    // Keyboard (nice on desktop / bluetooth pedals that send arrows)
     document.addEventListener("keydown", function (e) {
+      if (overlayEl.classList.contains("show")) { closeChord(); return; }
       if (current < 0) return;
       if (e.key === "ArrowRight") nextSong();
       else if (e.key === "ArrowLeft") prevSong();
+      else if (e.key === "ArrowDown" || e.key === "PageDown") { e.preventDefault(); pageBy(1); }
+      else if (e.key === "ArrowUp" || e.key === "PageUp") { e.preventDefault(); pageBy(-1); }
       else if (e.key === " ") { e.preventDefault(); toggleScroll(); }
       else if (e.key === "Escape") backToLibrary();
     });
 
     renderLibrary("");
-    // Optionally jump straight back to last song? Keep on library for choice.
   }
 
   document.addEventListener("DOMContentLoaded", init);
