@@ -1,5 +1,5 @@
 /* Simple offline cache. Bump CACHE when you change core files. */
-const CACHE = "songbook-v2";
+const CACHE = "songbook-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -26,18 +26,25 @@ self.addEventListener("activate", function (e) {
   self.clients.claim();
 });
 
+/* Network-first, cache as offline fallback.
+   Cache-first meant new songs/features only appeared on the *second* load,
+   which is confusing. Online: always current. Offline: last-known copy. */
 self.addEventListener("fetch", function (e) {
   if (e.request.method !== "GET") return;
   e.respondWith(
-    caches.match(e.request).then(function (cached) {
-      const network = fetch(e.request).then(function (res) {
-        if (res && res.status === 200 && res.type === "basic") {
-          const copy = res.clone();
-          caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
-        }
-        return res;
-      }).catch(function () { return cached; });
-      return cached || network;
+    fetch(e.request).then(function (res) {
+      if (res && res.status === 200 && res.type === "basic") {
+        const copy = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
+      }
+      return res;
+    }).catch(function () {
+      return caches.match(e.request).then(function (cached) {
+        // For page navigations that miss, fall back to the app shell.
+        return cached || (e.request.mode === "navigate"
+          ? caches.match("./index.html")
+          : undefined);
+      });
     })
   );
 });
