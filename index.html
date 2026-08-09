@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
+  <title>Songbook</title>
+  <meta name="theme-color" content="#12141a" />
+
+  <!-- Add-to-home-screen (iOS) -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Songbook" />
+  <link rel="apple-touch-icon" href="icon-180.png" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="manifest" href="manifest.webmanifest" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <!-- ===================== LIBRARY ===================== -->
+  <section id="library">
+    <div class="lib-header">
+      <h1>🎸 Songbook</h1>
+      <span class="count" id="count"></span>
+    </div>
+    <div class="search-wrap">
+      <input id="search" type="search" placeholder="Search songs or artists…" autocomplete="off" autocorrect="off" spellcheck="false" />
+    </div>
+    <div id="songList"></div>
+  </section>
+
+  <!-- ===================== VIEWER ===================== -->
+  <section id="viewer" class="hidden">
+    <div class="toolbar">
+      <button class="btn" id="backBtn" aria-label="Back to song list">☰</button>
+
+      <button class="btn" id="prevBtn" aria-label="Previous song">‹</button>
+      <button class="btn" id="nextBtn" aria-label="Next song">›</button>
+
+      <div class="song-head">
+        <div id="songTitle">—</div>
+        <div id="songMeta"></div>
+      </div>
+
+      <div class="group" aria-label="Transpose">
+        <button class="btn mini" id="transDown" aria-label="Transpose down">−</button>
+        <span class="value" id="transposeLabel">0</span>
+        <button class="btn mini" id="transUp" aria-label="Transpose up">＋</button>
+        <span class="label">key</span>
+      </div>
+
+      <div class="group" aria-label="Text size">
+        <button class="btn mini" id="fontDown" aria-label="Smaller text">A−</button>
+        <button class="btn mini" id="fontUp" aria-label="Larger text">A＋</button>
+      </div>
+
+      <div class="speed-wrap">
+        <span class="label">speed</span>
+        <input id="speedInput" type="range" min="1" max="10" step="1" value="3" aria-label="Auto-scroll speed" />
+      </div>
+      <button class="btn" id="playBtn" aria-label="Start auto-scroll"><span class="play-icon"></span></button>
+
+      <button class="btn" id="themeBtn" aria-label="Toggle light / dark">◐</button>
+    </div>
+
+    <div id="sheet"></div>
+  </section>
+
+  <script src="songs.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Show song count once loaded
+    document.addEventListener("DOMContentLoaded", function () {
+      var c = document.getElementById("count");
+      if (c && window.SONGS) c.textContent = window.SONGS.length + " songs";
+    });
+    // Register service worker for offline use
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("sw.js").catch(function () {});
+      });
+    }
+  </script>
+</body>
+</html>

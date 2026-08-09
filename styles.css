@@ -1,0 +1,255 @@
+:root {
+  --bg: #12141a;
+  --bg-2: #1b1e27;
+  --panel: #1b1e27;
+  --card: #21242f;
+  --card-hover: #2a2e3c;
+  --text: #f2f4f8;
+  --muted: #9aa2b4;
+  --accent: #ffb23e;      /* warm amber — chords */
+  --accent-2: #4fd1c5;    /* teal — active */
+  --line: #2c3040;
+  --sheet-font: 20px;
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+:root.light {
+  --bg: #f6f5f1;
+  --bg-2: #ffffff;
+  --panel: #ffffff;
+  --card: #ffffff;
+  --card-hover: #f0efe9;
+  --text: #1b1d22;
+  --muted: #6b7180;
+  --accent: #c8791a;
+  --accent-2: #0e8f82;
+  --line: #e4e2da;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overscroll-behavior: none;
+}
+
+body { height: 100dvh; overflow: hidden; }
+
+.hidden { display: none !important; }
+
+/* ============================ LIBRARY ============================ */
+#library {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: calc(12px + var(--safe-t)) calc(16px + var(--safe-r)) 0 calc(16px + var(--safe-l));
+}
+
+.lib-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.lib-header h1 {
+  font-size: 22px;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+.lib-header .count { color: var(--muted); font-size: 13px; }
+
+.search-wrap { position: relative; margin-bottom: 12px; }
+#search {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--text);
+  font-size: 16px;
+  outline: none;
+}
+#search:focus { border-color: var(--accent); }
+
+#songList {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  align-content: start;
+  padding-bottom: calc(20px + var(--safe-b));
+}
+
+.song-card {
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  transition: background .12s, transform .06s;
+}
+.song-card:active { transform: scale(0.98); }
+.song-card:hover { background: var(--card-hover); }
+.song-card-title { font-size: 17px; font-weight: 600; }
+.song-card-artist { font-size: 13px; color: var(--muted); }
+.song-card-key { font-size: 12px; color: var(--accent); margin-top: 4px; }
+.empty { color: var(--muted); grid-column: 1 / -1; text-align: center; padding: 30px; }
+
+/* ============================ VIEWER ============================ */
+#viewer {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: calc(6px + var(--safe-t)) calc(8px + var(--safe-r)) 6px calc(8px + var(--safe-l));
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.toolbar::-webkit-scrollbar { display: none; }
+
+.song-head {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+  padding: 0 4px;
+}
+#songTitle {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#songMeta { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.btn {
+  flex: none;
+  min-width: 38px;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  line-height: 1;
+}
+.btn:active { background: var(--card-hover); }
+.btn.small { font-size: 13px; }
+
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  flex: none;
+}
+.group .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+.group .value { font-size: 13px; min-width: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+
+.group .mini {
+  width: 30px; height: 30px; min-width: 30px;
+  padding: 0;
+  font-size: 18px;
+}
+
+#playBtn { }
+#playBtn .play-icon::before { content: "▶"; }
+#playBtn.playing .play-icon::before { content: "❚❚"; font-size: 13px; }
+#playBtn.playing { background: var(--accent-2); border-color: var(--accent-2); color: #06201d; }
+
+.speed-wrap { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.speed-wrap .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+#speedInput { width: 90px; accent-color: var(--accent-2); }
+
+/* The scrolling sheet */
+#sheet {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 18px calc(22px + var(--safe-r)) 60vh calc(22px + var(--safe-l));
+  font-size: var(--sheet-font);
+  line-height: 1.15;
+}
+
+.section-label {
+  color: var(--accent-2);
+  font-size: calc(var(--sheet-font) * 0.62);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 14px 0 4px;
+}
+.spacer { height: calc(var(--sheet-font) * 0.7); }
+
+.line {
+  white-space: pre-wrap;
+  margin-bottom: 2px;
+  /* chords sit above lyrics; each pair is an inline column */
+}
+.pair {
+  display: inline-flex;
+  flex-direction: column;
+  vertical-align: bottom;
+  white-space: pre;
+}
+.chord {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: calc(var(--sheet-font) * 0.82);
+  line-height: 1.05;
+  height: calc(var(--sheet-font) * 0.95);
+  white-space: pre;
+}
+/* Guarantee a gap after every chord so chord-only lines never collide,
+   while lyric syllables still set the column width when present. */
+.chord:not(:empty) { padding-right: 0.55em; }
+.lyric {
+  white-space: pre-wrap;
+}
+
+/* Landscape: give lyrics room and keep toolbar tight */
+@media (orientation: landscape) {
+  #sheet { padding-top: 14px; }
+}
+
+/* Small phones portrait fallback */
+@media (max-width: 430px) and (orientation: portrait) {
+  #songTitle { font-size: 14px; }
+  .group .label, .speed-wrap .label { display: none; }
+  #speedInput { width: 70px; }
+}
