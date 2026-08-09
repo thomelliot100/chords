@@ -35,7 +35,12 @@
   <!-- ===================== VIEWER ===================== -->
   <section id="viewer" class="hidden">
     <div class="toolbar">
-      <button class="btn" id="backBtn" aria-label="Back to song list">☰</button>
+      <button class="btn" id="backBtn" aria-label="Back to song list">
+        <svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M3 11.2 12 4l9 7.2" />
+          <path d="M5.5 9.8V19a1 1 0 0 0 1 1H10v-5h4v5h3.5a1 1 0 0 0 1-1V9.8" />
+        </svg>
+      </button>
 
       <button class="btn" id="prevBtn" aria-label="Previous song">‹</button>
       <button class="btn" id="nextBtn" aria-label="Next song">›</button>
@@ -82,7 +87,12 @@
         <input id="impKey" placeholder="Key" autocomplete="off" />
         <input id="impCapo" type="number" placeholder="Capo" min="0" max="11" />
       </div>
-      <textarea id="impText" placeholder="Paste the chart here…" spellcheck="false"></textarea>
+      <div class="import-file">
+        <button class="btn" id="impFileBtn" type="button">📄 Open PDF or text file</button>
+        <input id="impFile" type="file" accept=".pdf,.txt,.text,.cho,.crd,application/pdf,text/plain" hidden />
+        <span class="import-filename" id="impFileName"></span>
+      </div>
+      <textarea id="impText" placeholder="Paste the chart here, or drop a file on this box…" spellcheck="false"></textarea>
       <div class="import-hint" id="impHint"></div>
       <div class="import-preview" id="impPreview"></div>
       <div class="import-actions">

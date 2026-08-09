@@ -23,10 +23,15 @@
   --card: #ffffff;
   --card-hover: #f0efe9;
   --text: #1b1d22;
-  --muted: #6b7180;
-  --accent: #c8791a;
-  --accent-2: #0e8f82;
-  --line: #e4e2da;
+  /* Contrast against --bg (#f6f5f1), WCAG AA needs 4.5:1 for small text.
+     The chord amber also has to stay clearly distinct from --text, so these
+     are picked to clear 4.5:1 on the background while holding ~3:1 against
+     the lyrics. Earlier values (#c8791a / #0e8f82 / #6b7180) sat at 3.1–4.5:1
+     and washed out in daylight once the sheet font was turned down. */
+  --muted: #5c6270;    /* 5.60:1 */
+  --accent: #9c5a0f;   /* 4.96:1 on bg, 3.12:1 on text */
+  --accent-2: #0b7a6f; /* 4.78:1 on bg, 3.23:1 on text */
+  --line: #d8d5cb;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -284,6 +289,18 @@ body { height: 100dvh; overflow: hidden; }
 }
 
 /* ===================== CHORD DIAGRAM OVERLAY ===================== */
+/* Line-drawn icons inside buttons, sized off the button's font. */
+.btn .icon {
+  width: 1.15em;
+  height: 1.15em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  display: block;
+}
+
 /* ===================== IMPORT ===================== */
 .lib-header .lib-action { margin-left: auto; height: 34px; font-size: 14px; }
 
@@ -339,6 +356,16 @@ body { height: 100dvh; overflow: hidden; }
   overflow-wrap: normal;
   overflow-x: auto;
 }
+.import-file { display: flex; align-items: center; gap: 10px; }
+.import-filename {
+  color: var(--muted);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#impText.dropping { border-color: var(--accent); background: var(--card); }
+
 .import-hint { color: var(--muted); font-size: 12.5px; min-height: 16px; }
 
 .import-preview {

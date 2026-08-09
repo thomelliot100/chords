@@ -443,6 +443,115 @@
   }
   function closeChord() { overlayEl.classList.remove("show"); }
 
+  // ---- Reading files -------------------------------------------------------
+  // pdf.js is ~320KB, so it's only pulled in the first time a PDF is opened.
+  // The service worker caches it at runtime, so it still works offline after.
+  let pdfLibPromise = null;
+  function loadPdfLib() {
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    if (pdfLibPromise) return pdfLibPromise;
+    pdfLibPromise = new Promise(function (resolve, reject) {
+      const s = document.createElement("script");
+      s.src = "vendor/pdf.min.js";
+      s.onload = function () {
+        if (!window.pdfjsLib) { reject(new Error("pdf.js failed to load")); return; }
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = "vendor/pdf.worker.min.js";
+        resolve(window.pdfjsLib);
+      };
+      s.onerror = function () { reject(new Error("pdf.js failed to load")); };
+      document.head.appendChild(s);
+    });
+    return pdfLibPromise;
+  }
+
+  // A PDF has no notion of "lines" — just glyphs at x/y. Chord charts live or
+  // die by column alignment, so rebuild rows from y and columns from x rather
+  // than taking the naive concatenation of the text items.
+  function itemsToLines(items) {
+    const rows = [];
+    items.forEach(function (it) {
+      if (!it.str || !it.str.trim()) return;
+      const x = it.transform[4];
+      const y = it.transform[5];
+      let row = null;
+      for (let i = 0; i < rows.length; i++) {
+        if (Math.abs(rows[i].y - y) <= 2.5) { row = rows[i]; break; }
+      }
+      if (!row) { row = { y: y, items: [] }; rows.push(row); }
+      row.items.push({ x: x, str: it.str, w: it.width || 0 });
+    });
+    if (!rows.length) return [];
+
+    // Average glyph width across the page gives us a character grid to snap to.
+    let total = 0, n = 0;
+    rows.forEach(function (r) {
+      r.items.forEach(function (i) {
+        if (i.str.length && i.w > 0) { total += i.w / i.str.length; n++; }
+      });
+    });
+    const charW = n ? total / n : 5;
+
+    let minX = Infinity;
+    rows.forEach(function (r) {
+      r.items.forEach(function (i) { if (i.x < minX) minX = i.x; });
+    });
+
+    rows.sort(function (a, b) { return b.y - a.y; }); // PDF y grows upward
+    return rows.map(function (r) {
+      r.items.sort(function (a, b) { return a.x - b.x; });
+      let line = "";
+      r.items.forEach(function (i) {
+        const col = Math.max(0, Math.round((i.x - minX) / charW));
+        if (col > line.length) line += new Array(col - line.length + 1).join(" ");
+        line += i.str;
+      });
+      return line.replace(/\s+$/, "");
+    });
+  }
+
+  function readPdf(file) {
+    return loadPdfLib().then(function (pdfjsLib) {
+      return file.arrayBuffer();
+    }).then(function (buf) {
+      return window.pdfjsLib.getDocument({ data: buf }).promise;
+    }).then(function (doc) {
+      const pages = [];
+      let chain = Promise.resolve();
+      for (let p = 1; p <= doc.numPages; p++) {
+        (function (num) {
+          chain = chain.then(function () {
+            return doc.getPage(num)
+              .then(function (page) { return page.getTextContent(); })
+              .then(function (tc) { pages.push(itemsToLines(tc.items).join("\n")); });
+          });
+        })(p);
+      }
+      return chain.then(function () { return pages.join("\n\n"); });
+    });
+  }
+
+  function readDroppedFile(file) {
+    const isPdf = /\.pdf$/i.test(file.name) || file.type === "application/pdf";
+    impEl("impHint").textContent = isPdf
+      ? "Reading " + file.name + "…"
+      : "Reading " + file.name + "…";
+    const job = isPdf ? readPdf(file) : file.text();
+    return job.then(function (text) {
+      if (isPdf && text.replace(/\s/g, "").length < 40) {
+        impEl("impHint").textContent =
+          "That PDF has no text layer — it's probably a scan or an image. " +
+          "Text-based PDFs work; scans would need OCR, which isn't built in.";
+        return;
+      }
+      impEl("impText").value = text;
+      const g = !impEl("impTitle").value.trim() && guessMeta(text);
+      if (g) { impEl("impTitle").value = g.title; impEl("impArtist").value = g.artist; }
+      refreshImportPreview();
+    }).catch(function (err) {
+      impEl("impHint").textContent = "Couldn't read that file: " + (err && err.message ? err.message : err);
+    });
+  }
+
   // ---- Import --------------------------------------------------------------
   function impEl(id) { return $(id); }
 
@@ -587,6 +696,33 @@
     $("impSave").addEventListener("click", saveImport);
     $("impExport").addEventListener("click", exportMine);
     $("impKey").addEventListener("input", refreshImportPreview);
+
+    // File picker + drag-and-drop onto the paste box
+    $("impFileBtn").addEventListener("click", function () { $("impFile").click(); });
+    $("impFile").addEventListener("change", function (e) {
+      const f = e.target.files && e.target.files[0];
+      if (!f) return;
+      $("impFileName").textContent = f.name;
+      readDroppedFile(f);
+      e.target.value = "";
+    });
+    ["dragenter", "dragover"].forEach(function (ev) {
+      impEl("impText").addEventListener(ev, function (e) {
+        e.preventDefault(); impEl("impText").classList.add("dropping");
+      });
+    });
+    ["dragleave", "drop"].forEach(function (ev) {
+      impEl("impText").addEventListener(ev, function () {
+        impEl("impText").classList.remove("dropping");
+      });
+    });
+    impEl("impText").addEventListener("drop", function (e) {
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!f) return;
+      e.preventDefault();
+      $("impFileName").textContent = f.name;
+      readDroppedFile(f);
+    });
     impEl("impText").addEventListener("input", function () {
       const g = !impEl("impTitle").value.trim() && guessMeta(impEl("impText").value);
       if (g) { impEl("impTitle").value = g.title; impEl("impArtist").value = g.artist; }
