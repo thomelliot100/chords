@@ -1,7 +1,7 @@
 /* ============================================================
    Guitar Songbook — app logic
    - ChordPro parsing + rendering (chords sit above lyrics)
-   - Transpose (per song, remembered)
+   - Chord names normalised to sharps or flats to suit the key
    - Auto-scroll with adjustable speed
    - Tap to page forward (top of screen = page back)
    - Tap a chord to see its fingering diagram
@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v21";
+  const APP_VERSION = "v22";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -420,7 +420,6 @@
   const sheetEl = $("sheet");
   const titleEl = $("songTitle");
   const metaEl = $("songMeta");
-  const transposeLabel = $("transposeLabel");
   const speedInput = $("speedInput");
   const playBtn = $("playBtn");
   const searchEl = $("search");
@@ -513,33 +512,18 @@
   }
 
   // ---- Song rendering ------------------------------------------------------
-  function transposeFor(song) { return store.get("t:" + song.id, 0); }
-  function setTransposeFor(song, val) { store.set("t:" + song.id, val); }
-
-  function transposeKey(key, steps) {
-    if (!key) return "";
-    const m = key.match(/^([A-G][#b]?)(.*)$/);
-    if (!m) return key;
-    const minor = /m/.test(m[2]) ? "m" : "";
-    const useFlats = FLAT_KEYS.has(key);
-    return transposeChord(m[1], steps, useFlats) + minor;
-  }
-
   function renderSong() {
     const song = songs[current];
     if (!song) return;
-    const steps = transposeFor(song);
-    const shownKey = transposeKey(song.key, steps);
-    const useFlats = FLAT_KEYS.has(shownKey) || (steps === 0 && FLAT_KEYS.has(song.key));
+    const useFlats = FLAT_KEYS.has(song.key);
 
     titleEl.textContent = song.title;
     let meta = song.artist || "";
-    if (shownKey) meta += (meta ? "  ·  " : "") + "Key " + shownKey;
+    if (song.key) meta += (meta ? "  ·  " : "") + "Key " + song.key;
     if (song.capo) meta += "  ·  Capo " + song.capo;
     metaEl.textContent = meta;
-    transposeLabel.textContent = steps === 0 ? "0" : (steps > 0 ? "+" + steps : "" + steps);
 
-    renderBlocks(sheetEl, song.blocks, steps, useFlats);
+    renderBlocks(sheetEl, song.blocks, 0, useFlats);
   }
 
   function renderBlocks(container, blocks, steps, useFlats) {
@@ -626,15 +610,6 @@
   }
   function nextSong() { if (current >= 0 && current < songs.length - 1) openSong(current + 1); }
   function prevSong() { if (current > 0) openSong(current - 1); }
-
-  // ---- Transpose -----------------------------------------------------------
-  function bumpTranspose(delta) {
-    const song = songs[current]; if (!song) return;
-    let t = transposeFor(song) + delta;
-    if (t > 11) t = 11; if (t < -11) t = -11;
-    setTransposeFor(song, t);
-    renderSong();
-  }
 
   // ---- Font ----------------------------------------------------------------
   function applyFont() {
@@ -1264,10 +1239,6 @@
     speedInput.value = scrollSpeed;
 
     $("backBtn").addEventListener("click", backToLibrary);
-    $("prevBtn").addEventListener("click", prevSong);
-    $("nextBtn").addEventListener("click", nextSong);
-    $("transDown").addEventListener("click", function () { bumpTranspose(-1); });
-    $("transUp").addEventListener("click", function () { bumpTranspose(1); });
     $("fontDown").addEventListener("click", function () { bumpFont(-3); });
     $("fontUp").addEventListener("click", function () { bumpFont(3); });
     $("themeBtn").addEventListener("click", function () {
@@ -1278,6 +1249,7 @@
     speedInput.addEventListener("input", function () {
       scrollSpeed = parseInt(speedInput.value, 10);
       store.set("scrollSpeed", scrollSpeed);
+      $("speedValue").textContent = scrollSpeed;
     });
 
     // Sheet tap: chord -> diagram; else page (or pause auto-scroll)

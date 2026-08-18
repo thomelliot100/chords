@@ -49,31 +49,34 @@
         </svg>
       </button>
 
-      <button class="btn" id="prevBtn" aria-label="Previous song">‹</button>
-      <button class="btn" id="nextBtn" aria-label="Next song">›</button>
-
       <div class="song-head">
         <div id="songTitle">—</div>
         <div id="songMeta"></div>
       </div>
 
-      <div class="group" aria-label="Transpose">
-        <button class="btn mini" id="transDown" aria-label="Transpose down">−</button>
-        <span class="value" id="transposeLabel">0</span>
-        <button class="btn mini" id="transUp" aria-label="Transpose up">＋</button>
-        <span class="label">key</span>
+      <!-- On a phone the controls take their own row, so the title isn't
+           squeezed down to a letter or two. -->
+      <div class="tb-break" aria-hidden="true"></div>
+
+      <div class="group text-size" aria-label="Text size">
+        <button class="btn mini" id="fontDown" aria-label="Smaller text"><span class="a-sm">A</span></button>
+        <button class="btn mini" id="fontUp" aria-label="Larger text"><span class="a-lg">A</span></button>
       </div>
 
-      <div class="group" aria-label="Text size">
-        <button class="btn mini" id="fontDown" aria-label="Smaller text">A−</button>
-        <button class="btn mini" id="fontUp" aria-label="Larger text">A＋</button>
+      <div class="scroll-controls">
+        <button class="btn play-btn" id="playBtn" aria-label="Start auto-scroll">
+          <svg class="icon glyph-play" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M8 5.5v13l11-6.5z" />
+          </svg>
+          <svg class="icon glyph-pause" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M9 5v14M15 5v14" />
+          </svg>
+        </button>
+        <div class="speed-wrap">
+          <input id="speedInput" type="range" min="1" max="10" step="1" value="3" aria-label="Auto-scroll speed" />
+          <span class="speed-value" id="speedValue">3</span>
+        </div>
       </div>
-
-      <div class="speed-wrap">
-        <span class="label">speed</span>
-        <input id="speedInput" type="range" min="1" max="10" step="1" value="3" aria-label="Auto-scroll speed" />
-      </div>
-      <button class="btn" id="playBtn" aria-label="Start auto-scroll"><span class="play-icon"></span></button>
 
       <button class="btn" id="themeBtn" aria-label="Toggle light / dark">◐</button>
     </div>
