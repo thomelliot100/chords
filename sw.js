@@ -1,5 +1,5 @@
 /* Simple offline cache. Bump CACHE when you change core files. */
-const CACHE = "songbook-v11";
+const CACHE = "songbook-v12";
 const ASSETS = [
   "./",
   "./index.html",
@@ -32,6 +32,14 @@ self.addEventListener("install", function (e) {
     })
   );
   self.skipWaiting();
+});
+
+/* Lets the page ask which cache is actually serving it, so a stale worker
+   can be spotted rather than guessed at. */
+self.addEventListener("message", function (e) {
+  if (e.data === "version" && e.source) {
+    e.source.postMessage({ type: "version", cache: CACHE });
+  }
 });
 
 self.addEventListener("activate", function (e) {

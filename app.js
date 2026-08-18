@@ -12,6 +12,12 @@
 (function () {
   "use strict";
 
+  /* Keep in step with CACHE in sw.js. Shown in the library header so the
+     running version is a fact you can read, not something to guess at — and
+     so a stale service worker shows up as a mismatch instead of silently
+     serving old code. */
+  const APP_VERSION = "v12";
+
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
   const FLAT  = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
@@ -956,6 +962,64 @@
     impEl("impHint").textContent = "Exported " + mine.length + " song(s).";
   }
 
+  // ---- Version badge -------------------------------------------------------
+  // Reports the version of the code that's actually running, and — by asking
+  // the service worker which cache it's serving from — flags the case where
+  // the two have drifted apart.
+  function askWorkerVersion() {
+    return new Promise(function (resolve) {
+      if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+        resolve(null); return;
+      }
+      const timer = setTimeout(function () { resolve(null); }, 1500);
+      function onMsg(e) {
+        if (e.data && e.data.type === "version") {
+          clearTimeout(timer);
+          navigator.serviceWorker.removeEventListener("message", onMsg);
+          resolve(String(e.data.cache || "").replace(/^songbook-/, ""));
+        }
+      }
+      navigator.serviceWorker.addEventListener("message", onMsg);
+      navigator.serviceWorker.controller.postMessage("version");
+    });
+  }
+
+  function refreshVersionBadge() {
+    const el = $("versionBadge");
+    if (!el) return;
+    el.textContent = APP_VERSION;
+    el.classList.remove("stale");
+    el.title = "Tap to check for updates";
+    askWorkerVersion().then(function (cacheVer) {
+      if (cacheVer && cacheVer !== APP_VERSION) {
+        el.textContent = APP_VERSION + " → " + cacheVer;
+        el.classList.add("stale");
+        el.title = "Running " + APP_VERSION + " but cache is " + cacheVer + ". Tap to update.";
+      }
+    });
+  }
+
+  // Everything I had to do by hand all session, in one button: re-check the
+  // worker, bypass the HTTP cache for the core files, then reload.
+  function forceUpdate() {
+    const el = $("versionBadge");
+    if (el) el.textContent = "updating…";
+    const steps = [];
+    if ("serviceWorker" in navigator) {
+      steps.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+        return Promise.all(regs.map(function (r) { return r.update().catch(function () {}); }));
+      }).catch(function () {}));
+    }
+    steps.push(Promise.all(
+      ["index.html", "app.js", "styles.css", "songs.js", "chords.js", "sw.js"].map(function (f) {
+        return fetch(f, { cache: "reload" }).catch(function () {});
+      })
+    ));
+    Promise.all(steps).then(function () {
+      setTimeout(function () { location.reload(); }, 250);
+    });
+  }
+
   // ---- Theme ---------------------------------------------------------------
   function applyTheme() { document.documentElement.classList.toggle("light", !dark); }
 
@@ -999,6 +1063,9 @@
     overlayEl.addEventListener("click", closeChord);
 
     searchEl.addEventListener("input", function () { renderLibrary(searchEl.value); });
+
+    $("versionBadge").addEventListener("click", forceUpdate);
+    refreshVersionBadge();
 
     $("restoreBtn").addEventListener("click", function () {
       saveHidden([]);
