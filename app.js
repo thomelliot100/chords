@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v18";
+  const APP_VERSION = "v19";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -925,6 +925,12 @@
     });
     list.push(entry);
     saveUserSongs(list);
+    // Importing a song is an explicit request for it, so it has to override an
+    // earlier hide or delete of the same title. Without this the song saves
+    // correctly and is then filtered straight back out by buildSongs(), which
+    // looks like the import silently did nothing.
+    saveHidden(loadHidden().filter(function (h) { return h !== id; }));
+    savePurged(loadPurged().filter(function (h) { return h !== id; }));
     buildSongs();
     closeImport();
     renderLibrary("");
