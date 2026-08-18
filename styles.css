@@ -148,7 +148,37 @@ body { height: 100dvh; overflow: hidden; }
 .song-card:hover { background: var(--card-hover); }
 .song-card-title { font-size: 17px; font-weight: 600; }
 .song-card-artist { font-size: 13px; color: var(--muted); }
-.song-card-key { font-size: 12px; color: var(--accent); margin-top: 4px; }
+.song-card-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
+.song-card-key { font-size: 12px; color: var(--accent); }
+.song-card-capo {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent-2);
+  border: 1px solid color-mix(in srgb, var(--accent-2) 45%, transparent);
+  border-radius: 999px;
+  padding: 1px 7px;
+  line-height: 1.5;
+}
+
+/* Capo filter */
+.filter-row { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--line);
+  background: var(--bg-2);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.chip:hover { color: var(--text); }
+.chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #17181d;
+  font-weight: 700;
+}
 .empty { color: var(--muted); grid-column: 1 / -1; text-align: center; padding: 30px; }
 
 /* ============================ VIEWER ============================ */

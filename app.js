@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v19";
+  const APP_VERSION = "v20";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -395,6 +395,7 @@
   }
   buildSongs();
 
+  let capoFilter = store.get("capoFilter", "all");   // "all" | "yes" | "no"
   let current = -1;
   let fontSize = store.get("fontSize", 27);
   let dark = store.get("dark", true);
@@ -425,6 +426,8 @@
     let shown = 0;
     songs.forEach(function (song) {
       if (f && (song.title + " " + song.artist).toLowerCase().indexOf(f) === -1) return;
+      if (capoFilter === "yes" && !song.capo) return;
+      if (capoFilter === "no" && song.capo) return;
       shown++;
       const row = document.createElement("div");
       row.className = "song-row";
@@ -433,10 +436,19 @@
       card.innerHTML =
         '<span class="song-card-title"></span>' +
         '<span class="song-card-artist"></span>' +
-        '<span class="song-card-key"></span>';
+        '<span class="song-card-meta">' +
+          '<span class="song-card-key"></span>' +
+          '<span class="song-card-capo"></span>' +
+        '</span>';
       card.querySelector(".song-card-title").textContent = song.title;
       card.querySelector(".song-card-artist").textContent = song.artist;
       card.querySelector(".song-card-key").textContent = song.key ? "Key " + song.key : "";
+      const capoEl = card.querySelector(".song-card-capo");
+      if (song.capo) {
+        capoEl.textContent = "Capo " + song.capo;
+      } else {
+        capoEl.classList.add("hidden");
+      }
       card.addEventListener("click", function () { openSong(song.index); });
       row.appendChild(card);
       const del = document.createElement("button");
@@ -475,8 +487,14 @@
     const countEl = $("count");
     if (countEl) {
       const mine = songs.filter(function (s) { return s.custom; }).length;
-      countEl.textContent = songs.length + " songs" + (mine ? " · " + mine + " yours" : "");
+      const filtering = capoFilter !== "all" || !!f;
+      countEl.textContent = filtering
+        ? shown + " of " + songs.length + " songs"
+        : songs.length + " songs" + (mine ? " · " + mine + " yours" : "");
     }
+    document.querySelectorAll(".chip[data-capo]").forEach(function (c) {
+      c.classList.toggle("on", c.dataset.capo === capoFilter);
+    });
     const restoreEl = $("restoreBtn");
     if (restoreEl) {
       const n = loadHidden().length;
@@ -1241,6 +1259,14 @@
     overlayEl.addEventListener("click", closeChord);
 
     searchEl.addEventListener("input", function () { renderLibrary(searchEl.value); });
+
+    document.querySelectorAll(".chip[data-capo]").forEach(function (chip) {
+      chip.addEventListener("click", function () {
+        capoFilter = chip.dataset.capo;
+        store.set("capoFilter", capoFilter);
+        renderLibrary(searchEl.value);
+      });
+    });
 
     $("versionBadge").addEventListener("click", forceUpdate);
     refreshVersionBadge();
