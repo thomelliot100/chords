@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v20";
+  const APP_VERSION = "v21";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -389,8 +389,16 @@
       };
     });
     // Filter before mapping so song.index still matches its slot in songs[].
-    songs = (window.SONGS || []).concat(mine)
-      .filter(function (s) { return hidden.indexOf(songKey(s)) === -1; })
+    const visible = (window.SONGS || []).concat(mine)
+      .filter(function (s) { return hidden.indexOf(songKey(s)) === -1; });
+
+    // Your own version of a song replaces the built-in of the same name rather
+    // than sitting next to it. Imported songs come last, so the last entry for
+    // a given title|artist wins.
+    const winner = {};
+    visible.forEach(function (s) { winner[songKey(s)] = s; });
+    songs = visible
+      .filter(function (s) { return winner[songKey(s)] === s; })
       .map(makeSong);
   }
   buildSongs();
@@ -1294,9 +1302,14 @@
     $("impBackup").addEventListener("click", exportBackup);
     $("impRestore").addEventListener("click", function () { $("impBackupFile").click(); });
     $("impBackupFile").addEventListener("change", function (e) {
-      const f = e.target.files && e.target.files[0];
-      if (f) restoreBackup(f);
-      e.target.value = "";
+      const input = e.target;
+      const f = input.files && input.files[0];
+      if (!f) return;
+      // Same trap as the chart file input: clearing the input before the async
+      // read finishes can release the file on iOS WebKit, so the restore
+      // silently does nothing. Clear it once the read has settled.
+      restoreBackup(f).then(function () { input.value = ""; },
+                            function () { input.value = ""; });
     });
     $("impKey").addEventListener("input", refreshImportPreview);
 

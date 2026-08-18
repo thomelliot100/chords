@@ -126,7 +126,10 @@
       <div class="import-actions">
         <button class="btn" id="impBackup" title="Save all your imported songs to a file">⤓ Backup</button>
         <button class="btn" id="impRestore" title="Load a backup file from another device">⤒ Restore</button>
-        <input id="impBackupFile" type="file" accept=".json,application/json" hidden />
+        <!-- No accept filter on purpose: iOS greys out files whose extension
+             it can't map to a known type, which made .json backups
+             unselectable in the Files picker. The file is validated on read. -->
+        <input id="impBackupFile" type="file" hidden />
         <button class="btn primary" id="impSave">Add to songbook</button>
       </div>
       <button class="linkish" id="impExport">or export as a songs.js snippet</button>
