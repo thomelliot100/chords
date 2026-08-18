@@ -1,5 +1,5 @@
 /* Simple offline cache. Bump CACHE when you change core files. */
-const CACHE = "songbook-v12";
+const CACHE = "songbook-v13";
 const ASSETS = [
   "./",
   "./index.html",

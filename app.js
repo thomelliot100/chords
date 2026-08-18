@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v12";
+  const APP_VERSION = "v13";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -1090,11 +1090,15 @@
     // File picker + drag-and-drop onto the paste box
     $("impFileBtn").addEventListener("click", function () { $("impFile").click(); });
     $("impFile").addEventListener("change", function (e) {
-      const f = e.target.files && e.target.files[0];
+      const input = e.target;
+      const f = input.files && input.files[0];
       if (!f) return;
       $("impFileName").textContent = f.name;
-      readDroppedFile(f);
-      e.target.value = "";
+      // Clear the input only once the read has finished. Doing it straight
+      // away can release the underlying file on iOS WebKit while the async
+      // read is still in flight, which fails silently with an empty result.
+      readDroppedFile(f).then(function () { input.value = ""; },
+                              function () { input.value = ""; });
     });
     ["dragenter", "dragover"].forEach(function (ev) {
       impEl("impText").addEventListener(ev, function (e) {
