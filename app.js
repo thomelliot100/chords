@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v16";
+  const APP_VERSION = "v17";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -469,7 +469,8 @@
     const restoreEl = $("restoreBtn");
     if (restoreEl) {
       const n = loadHidden().length;
-      restoreEl.textContent = "Restore " + n + " hidden";
+      restoreEl.textContent = "Hidden (" + n + ")";
+      restoreEl.title = "Show hidden songs";
       restoreEl.classList.toggle("hidden", n === 0);
     }
   }
@@ -1029,6 +1030,72 @@
     impEl("impHint").textContent = "Exported " + mine.length + " song(s).";
   }
 
+  // ---- Hidden songs --------------------------------------------------------
+  // Deleting a built-in only hides it, since songs.js ships with the app. This
+  // panel is where those live, so hiding one stays reversible per song rather
+  // than being an all-or-nothing restore.
+  function hiddenSongsList() {
+    return loadHidden().map(function (id) {
+      let src = null;
+      (window.SONGS || []).forEach(function (s) {
+        if (!src && songKey(s) === id) src = s;
+      });
+      const parts = id.split("|");
+      return {
+        id: id,
+        title: src ? src.title : (parts[0] || id),
+        artist: src ? (src.artist || "") : (parts[1] || "")
+      };
+    });
+  }
+
+  function unhide(id) {
+    saveHidden(loadHidden().filter(function (h) { return h !== id; }));
+    buildSongs();
+    renderLibrary(searchEl.value);
+    renderHiddenList();
+  }
+
+  function renderHiddenList() {
+    const listEl = $("hiddenList");
+    const noteEl = $("hiddenNote");
+    if (!listEl) return;
+    const items = hiddenSongsList();
+    listEl.innerHTML = "";
+    noteEl.textContent = items.length
+      ? "These are hidden on this device only. The songs themselves ship with the app, so restoring one always brings it back."
+      : "Nothing is hidden.";
+    $("hiddenRestoreAll").disabled = items.length === 0;
+    items.forEach(function (it) {
+      const row = document.createElement("div");
+      row.className = "hidden-row";
+      const label = document.createElement("div");
+      label.className = "hidden-row-label";
+      const t = document.createElement("span");
+      t.className = "hidden-row-title";
+      t.textContent = it.title;
+      const a = document.createElement("span");
+      a.className = "hidden-row-artist";
+      a.textContent = it.artist;
+      label.appendChild(t);
+      label.appendChild(a);
+      const btn = document.createElement("button");
+      btn.className = "btn mini";
+      btn.textContent = "Restore";
+      btn.addEventListener("click", function () { unhide(it.id); });
+      row.appendChild(label);
+      row.appendChild(btn);
+      listEl.appendChild(row);
+    });
+    if (!items.length) closeHidden();
+  }
+
+  function openHidden() {
+    renderHiddenList();
+    $("hiddenOverlay").classList.add("show");
+  }
+  function closeHidden() { $("hiddenOverlay").classList.remove("show"); }
+
   // ---- Version badge -------------------------------------------------------
   // Reports the version of the code that's actually running, and — by asking
   // the service worker which cache it's serving from — flags the case where
@@ -1134,10 +1201,16 @@
     $("versionBadge").addEventListener("click", forceUpdate);
     refreshVersionBadge();
 
-    $("restoreBtn").addEventListener("click", function () {
+    $("restoreBtn").addEventListener("click", openHidden);
+    $("hiddenClose").addEventListener("click", closeHidden);
+    $("hiddenRestoreAll").addEventListener("click", function () {
       saveHidden([]);
       buildSongs();
       renderLibrary(searchEl.value);
+      renderHiddenList();
+    });
+    $("hiddenOverlay").addEventListener("click", function (e) {
+      if (e.target === $("hiddenOverlay")) closeHidden();
     });
 
     // Import

@@ -76,6 +76,21 @@
     <div id="sheet"></div>
   </section>
 
+  <!-- ===================== HIDDEN SONGS ===================== -->
+  <div id="hiddenOverlay" aria-hidden="true">
+    <div class="hidden-panel" role="dialog" aria-label="Hidden songs">
+      <div class="import-head">
+        <strong>Hidden songs</strong>
+        <button class="btn mini" id="hiddenClose" aria-label="Close hidden songs">✕</button>
+      </div>
+      <p class="import-hint" id="hiddenNote"></p>
+      <div id="hiddenList" class="hidden-list"></div>
+      <div class="import-actions">
+        <button class="btn" id="hiddenRestoreAll">Restore all</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ===================== IMPORT ===================== -->
   <div id="importOverlay" aria-hidden="true">
     <div class="import-panel" role="dialog" aria-label="Import a song">
