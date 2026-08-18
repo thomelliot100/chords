@@ -137,11 +137,24 @@
     return /\[[A-G][^\]]*\]\S/.test(text) || /\{\s*c(omment)?\s*:/i.test(text);
   }
 
+  // Chord-diagram graphics in exported PDFs often come through as runs of
+  // mis-encoded glyphs (CJK and similar). They're never chart content.
+  function isGlyphJunk(line) {
+    const chars = line.replace(/\s/g, "");
+    if (chars.length < 2) return false;
+    let odd = 0;
+    for (let i = 0; i < chars.length; i++) {
+      if (chars.charCodeAt(i) > 0x2100) odd++;
+    }
+    return odd / chars.length > 0.5;
+  }
+
   function chartToChordPro(text) {
     const src = text.replace(/\r\n/g, "\n").replace(/\t/g, "    ").split("\n");
     const out = [];
     for (let i = 0; i < src.length; i++) {
       const line = src[i];
+      if (isGlyphJunk(line)) continue;
       const sec = sectionName(line);
       if (sec) { out.push("{c: " + sec + "}"); continue; }
       if (!line.trim()) { out.push(""); continue; }
@@ -161,6 +174,139 @@
       out.push(line);
     }
     return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  }
+
+  // ---- Working out a song's key from its chords ----------------------------
+  // Split a chord name into pitch class + rough quality. Extensions (7, sus,
+  // add9…) don't change which key a chord belongs to, so they're ignored.
+  function chordParts(name) {
+    const m = String(name).split("/")[0].match(/^([A-G][#b]?)(.*)$/);
+    if (!m) return null;
+    const pc = noteIndex(m[1]);
+    if (pc < 0) return null;
+    const tail = m[2];
+    let q = "maj";
+    if (/^(dim|°|o\b)/i.test(tail)) q = "dim";
+    else if (/^m(?!aj)/.test(tail)) q = "min";
+    return { pc: pc, q: q };
+  }
+
+  // Scale degrees and qualities of the seven diatonic triads.
+  const MAJOR_TRIADS = [[0,"maj"],[2,"min"],[4,"min"],[5,"maj"],[7,"maj"],[9,"min"],[11,"dim"]];
+  // Natural minor, plus the major V that harmonic minor borrows — extremely
+  // common in practice, so a song using it shouldn't be pushed off its key.
+  const MINOR_TRIADS = [[0,"min"],[2,"dim"],[3,"maj"],[5,"min"],[7,"min"],[8,"maj"],[10,"maj"],[7,"maj"]];
+
+  function guessKeyFromChords(names) {
+    const counts = {};
+    let first = null, last = null, total = 0;
+    names.forEach(function (n) {
+      const p = chordParts(n);
+      if (!p) return;
+      const id = p.pc + ":" + p.q;
+      counts[id] = (counts[id] || 0) + 1;
+      if (!first) first = p;
+      last = p;
+      total++;
+    });
+    if (total < 3) return "";
+
+    let best = null;
+    for (let root = 0; root < 12; root++) {
+      [["maj", MAJOR_TRIADS], ["min", MINOR_TRIADS]].forEach(function (pair) {
+        const mode = pair[0], triads = pair[1];
+        const allowed = {};
+        triads.forEach(function (t) { allowed[((root + t[0]) % 12) + ":" + t[1]] = true; });
+        let score = 0;
+        Object.keys(counts).forEach(function (id) {
+          if (allowed[id]) score += counts[id];
+        });
+        // A song usually starts and ends on its tonic — worth a nudge, but not
+        // enough to override the chords actually used. The opening chord is
+        // weighted higher: charts often stop mid-progression, so the last
+        // chord is the less reliable of the two. Checked against the built-in
+        // songs' declared keys, this scores 8/8 where favouring the final
+        // chord scores 7/8, and either signal alone does worse than both.
+        const tonic = root + ":" + (mode === "maj" ? "maj" : "min");
+        if (first && first.pc + ":" + first.q === tonic) score += 1.5;
+        if (last && last.pc + ":" + last.q === tonic) score += 1;
+        if (!best || score > best.score) best = { root: root, mode: mode, score: score };
+      });
+    }
+    if (!best || best.score / total < 0.7) return ""; // too ambiguous to claim
+    const name = (best.mode === "min" ? FLAT : SHARP)[best.root];
+    const label = name + (best.mode === "min" ? "m" : "");
+    return FLAT_KEYS.has(label) ? FLAT[best.root] + (best.mode === "min" ? "m" : "") : label;
+  }
+
+  // ---- Reading a chart's header --------------------------------------------
+  // Pulls title / artist / key / capo off the top of a chart and reports which
+  // lines were used, so they can be dropped from the body.
+  function extractMeta(text) {
+    const lines = text.replace(/\r\n/g, "\n").split("\n");
+    const meta = { title: "", artist: "", key: "", capo: "" };
+    const used = {};
+    const limit = Math.min(lines.length, 15);
+
+    for (let i = 0; i < limit; i++) {
+      const raw = lines[i];
+      const L = raw.trim();
+      if (!L || isChordLine(raw) || sectionName(raw)) continue;
+      let m;
+      if (!meta.title && (m = L.match(/^(?:title|song)\s*[:\-–]\s*(.+)$/i))) {
+        meta.title = m[1].trim(); used[i] = 1; continue;
+      }
+      if (!meta.artist && (m = L.match(/^(?:artist|band|performed\s+by|written\s+by)\s*[:\-–]?\s*(.+)$/i))) {
+        meta.artist = m[1].trim(); used[i] = 1; continue;
+      }
+      // Chart sites head the page "<Title> Chords by <Artist>" (Ultimate
+      // Guitar and friends). Take both halves and drop the line.
+      if (i < 4 && (m = L.match(/^(.{1,70}?)\s+(?:chords|tabs?|lyrics)?\s*by\s+(.{2,50})$/i))) {
+        if (!meta.title) meta.title = m[1].replace(/\s+(chords|tabs?|lyrics)$/i, "").trim();
+        if (!meta.artist) meta.artist = m[2].trim();
+        used[i] = 1; continue;
+      }
+      // A bare "by X" only counts right at the top, where it can't be a lyric.
+      if (!meta.artist && i < 4 && (m = L.match(/^by\s+(.{2,50})$/i))) {
+        meta.artist = m[1].trim(); used[i] = 1; continue;
+      }
+      // Header fields we don't use, but which shouldn't end up in the chart.
+      if (/^(difficulty|tuning|author|strumming|subscribe|rating|views)\s*[:\-–]/i.test(L)) {
+        used[i] = 1; continue;
+      }
+      if (/^(chords|tab|lyrics|chord\s+diagrams?)$/i.test(L)) { used[i] = 1; continue; }
+      if (!meta.key && (m = L.match(/^key\s*(?:of\s*)?[:\-–]?\s*([A-G][#b]?)\s*(m|min|minor|maj|major)?\b/i))) {
+        // "bb" -> "Bb", "f#" -> "F#": note letter upper, accidental lower.
+        meta.key = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+        if (m[2] && /^m(in(or)?)?$/i.test(m[2])) meta.key += "m";
+        used[i] = 1; continue;
+      }
+      if (!meta.capo && /^(no\s+capo|capo\s*[:\-–]?\s*(none|0|off))$/i.test(L)) {
+        meta.capo = "0"; used[i] = 1; continue;
+      }
+      if (!meta.capo && (m = L.match(/^capo\s*(?:on\s*|at\s*)?(?:fret\s*)?[:\-–]?\s*(\d{1,2})/i))) {
+        meta.capo = m[1]; used[i] = 1; continue;
+      }
+    }
+
+    // "Title - Artist" on the first line of the chart.
+    if (!meta.title || !meta.artist) {
+      for (let i = 0; i < Math.min(lines.length, 3); i++) {
+        if (used[i]) continue;
+        const L = lines[i].trim();
+        if (!L || isChordLine(lines[i]) || sectionName(lines[i])) continue;
+        const m = L.match(/^(.{1,60}?)\s+[-–—]\s+(.{1,60})$/);
+        if (m) {
+          if (!meta.title) meta.title = m[1].trim();
+          if (!meta.artist) meta.artist = m[2].trim();
+          used[i] = 1;
+        }
+        break;
+      }
+    }
+
+    const body = lines.filter(function (_, i) { return !used[i]; }).join("\n").trim();
+    return { meta: meta, body: body };
   }
 
   // Already-ChordPro text only needs its section headings normalised.
@@ -605,8 +751,7 @@
         return;
       }
       impEl("impText").value = text;
-      const g = !impEl("impTitle").value.trim() && guessMeta(text);
-      if (g) { impEl("impTitle").value = g.title; impEl("impArtist").value = g.artist; }
+      autoFillMeta(text);
       refreshImportPreview();
     }).catch(function (err) {
       lastFileProblem = "Couldn't read “" + file.name + "”: " +
@@ -631,20 +776,29 @@
   }
   function closeImport() { $("importOverlay").classList.remove("show"); }
 
-  // Pull "Title - Artist" off the top of a pasted chart, if it's there.
-  function guessMeta(text) {
-    const first = (text.split("\n")[0] || "").trim();
-    const m = first.match(/^(.{1,60}?)\s+[-–—]\s+(.{1,60})$/);
-    if (!m) return null;
-    if (isChordLine(first) || sectionName(first)) return null;
-    return { title: m[1].trim(), artist: m[2].trim() };
+  // Header lines that were read as metadata aren't part of the chart.
+  function bodyFromPaste(text) {
+    return importToBody(extractMeta(text).body);
   }
 
-  // If the first line was read as "Title - Artist", it isn't part of the chart.
-  function bodyFromPaste(text) {
-    let t = text;
-    if (guessMeta(t)) t = t.split("\n").slice(1).join("\n");
-    return importToBody(t);
+  // Fill in whatever the chart tells us, without overwriting anything already
+  // typed — a value the user entered by hand always wins.
+  function autoFillMeta(text) {
+    const found = extractMeta(text).meta;
+    ["title", "artist", "key", "capo"].forEach(function (f) {
+      const el = impEl("imp" + f.charAt(0).toUpperCase() + f.slice(1));
+      if (el && !el.value.trim() && found[f]) el.value = found[f];
+    });
+    // No stated key? Infer one from the chords actually used.
+    const keyEl = impEl("impKey");
+    if (keyEl && !keyEl.value.trim()) {
+      const body = importToBody(extractMeta(text).body);
+      const names = (body.match(/\[([^\]]+)\]/g) || []).map(function (t) {
+        return t.slice(1, -1);
+      });
+      const guess = guessKeyFromChords(names);
+      if (guess) keyEl.value = guess;
+    }
   }
 
   function refreshImportPreview() {
@@ -893,8 +1047,7 @@
       readDroppedFile(f);
     });
     impEl("impText").addEventListener("input", function () {
-      const g = !impEl("impTitle").value.trim() && guessMeta(impEl("impText").value);
-      if (g) { impEl("impTitle").value = g.title; impEl("impArtist").value = g.artist; }
+      autoFillMeta(impEl("impText").value);
       refreshImportPreview();
     });
     $("importOverlay").addEventListener("click", function (e) {
