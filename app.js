@@ -555,7 +555,35 @@
       }
       const lineEl = document.createElement("div");
       lineEl.className = "line";
+      // A chord that falls part-way through a word splits it across two pairs,
+      // and the line wraps between pairs — so on a narrow screen the word
+      // itself breaks in half. Split each cell into runs of word and
+      // whitespace, then bundle everything up to and including a space into a
+      // group that can't break internally. Wrapping then happens only at
+      // spaces, however many chords land inside a word.
+      const tokens = [];
       b.cells.forEach(function (cell) {
+        const parts = cell.text.match(/\s+|\S+/g);
+        if (!parts) {
+          tokens.push({ chord: cell.chord, text: "", isSpace: false });
+          return;
+        }
+        parts.forEach(function (p, i) {
+          tokens.push({
+            chord: i === 0 ? cell.chord : "",
+            text: p,
+            isSpace: /^\s/.test(p)
+          });
+        });
+      });
+
+      let group = null;
+      tokens.forEach(function (cell) {
+        if (!group) {
+          group = document.createElement("span");
+          group.className = "wordgroup";
+          lineEl.appendChild(group);
+        }
         const pair = document.createElement("span");
         pair.className = "pair";
         const chord = document.createElement("span");
@@ -571,7 +599,9 @@
         lyric.textContent = cell.text.length ? cell.text : "";
         pair.appendChild(chord);
         pair.appendChild(lyric);
-        lineEl.appendChild(pair);
+        group.appendChild(pair);
+        // The space ends the word, so the next group may start a new line.
+        if (cell.isSpace) group = null;
       });
       container.appendChild(lineEl);
     });

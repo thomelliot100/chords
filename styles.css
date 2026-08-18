@@ -291,6 +291,13 @@ body { height: 100dvh; overflow: hidden; }
   margin-bottom: 2px;
   /* chords sit above lyrics; each pair is an inline column */
 }
+/* One word, however many chords fall inside it. Lines break between groups,
+   never inside one, so a chord mid-word can't split the word in half. */
+.wordgroup {
+  display: inline-flex;
+  align-items: flex-end;
+  vertical-align: bottom;
+}
 .pair {
   display: inline-flex;
   flex-direction: column;
