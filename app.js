@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v17";
+  const APP_VERSION = "v18";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -352,6 +352,17 @@
     return Array.isArray(list) ? list : [];
   }
   function saveHidden(list) { store.set("hiddenSongs", list); }
+
+  // "Deleted for good": still only a list, because songs.js ships with the
+  // app and a browser can't edit it. The difference from hidden is that these
+  // are no longer offered back in the hidden panel — the song is gone from
+  // the interface on this device rather than parked.
+  function loadPurged() {
+    const list = store.get("purgedSongs", []);
+    return Array.isArray(list) ? list : [];
+  }
+  function savePurged(list) { store.set("purgedSongs", list); }
+
   function songKey(s) { return ((s.title || "") + "|" + (s.artist || "")).toLowerCase(); }
 
   function makeSong(s, i) {
@@ -370,7 +381,7 @@
 
   let songs = [];
   function buildSongs() {
-    const hidden = loadHidden();
+    const hidden = loadHidden().concat(loadPurged());
     const mine = loadUserSongs().map(function (s) {
       return {
         title: s.title, artist: s.artist, key: s.key,
@@ -940,7 +951,8 @@
   function exportBackup() {
     const mine = loadUserSongs();
     const hidden = loadHidden();
-    if (!mine.length && !hidden.length) {
+    const purged = loadPurged();
+    if (!mine.length && !hidden.length && !purged.length) {
       impEl("impHint").textContent = "Nothing to back up yet — no imported songs.";
       return;
     }
@@ -949,7 +961,8 @@
       version: BACKUP_VERSION,
       exported: new Date().toISOString(),
       songs: mine,
-      hidden: hidden
+      hidden: hidden,
+      purged: purged
     };
     const stamp = payload.exported.slice(0, 10);
     download("songbook-" + stamp + ".json", JSON.stringify(payload, null, 2), "application/json");
@@ -997,6 +1010,13 @@
           if (typeof id === "string" && hidden.indexOf(id) === -1) hidden.push(id);
         });
         saveHidden(hidden);
+      }
+      if (Array.isArray(data.purged)) {
+        const purged = loadPurged();
+        data.purged.forEach(function (id) {
+          if (typeof id === "string" && purged.indexOf(id) === -1) purged.push(id);
+        });
+        savePurged(purged);
       }
       buildSongs();
       renderLibrary("");
@@ -1083,8 +1103,26 @@
       btn.className = "btn mini";
       btn.textContent = "Restore";
       btn.addEventListener("click", function () { unhide(it.id); });
+      const del = document.createElement("button");
+      del.className = "btn mini danger";
+      del.textContent = "Delete";
+      del.addEventListener("click", function () {
+        if (!window.confirm(
+          "Delete “" + it.title + "” for good?\n\n" +
+          "It stays out of your songbook and won't be listed here again, " +
+          "so there'll be no way to bring it back from this screen."
+        )) return;
+        saveHidden(loadHidden().filter(function (h) { return h !== it.id; }));
+        const purged = loadPurged();
+        if (purged.indexOf(it.id) === -1) purged.push(it.id);
+        savePurged(purged);
+        buildSongs();
+        renderLibrary(searchEl.value);
+        renderHiddenList();
+      });
       row.appendChild(label);
       row.appendChild(btn);
+      row.appendChild(del);
       listEl.appendChild(row);
     });
     if (!items.length) closeHidden();

@@ -356,6 +356,9 @@ body { height: 100dvh; overflow: hidden; }
   background: var(--card);
 }
 .hidden-row-label { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.btn.mini.danger { color: #e5484d; border-color: color-mix(in srgb, #e5484d 45%, var(--line)); }
+.btn.mini.danger:hover { background: color-mix(in srgb, #e5484d 14%, var(--card)); }
+:root.light .btn.mini.danger { color: #c0292e; }
 .hidden-row-title { font-weight: 600; }
 .hidden-row-artist { color: var(--muted); font-size: 12.5px; }
 .import-actions .btn[disabled] { opacity: 0.4; cursor: default; }
