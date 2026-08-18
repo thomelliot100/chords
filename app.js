@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v13";
+  const APP_VERSION = "v14";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -649,11 +649,13 @@
   function itemsToLines(items) {
     const rows = [];
     items.forEach(function (it) {
-      // Keep whitespace-only items. pdf.js has already worked out where the
-      // spaces go, and on a real chart a third of the items are spaces —
-      // dropping them and re-deriving spacing from geometry splits and jams
-      // words, which reads as spelling mistakes.
-      if (!it.str) return;
+      // Drop whitespace-only items and let geometry decide the spacing below.
+      // Their text can't be trusted: charts routinely carry blank items barely
+      // 1 unit wide against a ~4.8 unit character — sub-pixel positioning
+      // nudges, not spaces — and emitting a space for each one splits words
+      // down the middle. Their x positions still account for any real gap, so
+      // nothing is lost by ignoring them here.
+      if (!it.str || !it.str.trim()) return;
       const x = it.transform[4];
       const y = it.transform[5];
       let row = null;
@@ -684,10 +686,11 @@
 
     // Padding is only for genuine positional jumps — an indent, or the gap
     // between chords on a chord row. Runs that merely sit next to each other
-    // are one word and must be joined with nothing at all. Measured against
-    // pdf.js's own word segmentation, anything from ~1x to 3x charW scores
-    // identically, so this sits in the middle of that plateau.
-    const spaceGap = charW * 1.5;
+    // are one word and must be joined with nothing at all. Tuned by counting
+    // stranded single letters in lyric rows (chord rows excluded, since "G"
+    // and "D" are real chords there): 0.9 gave the fewest splits with no
+    // words jammed together, across two different charts.
+    const spaceGap = charW * 0.9;
 
     rows.sort(function (a, b) { return b.y - a.y; }); // PDF y grows upward
     return rows.map(function (r) {
