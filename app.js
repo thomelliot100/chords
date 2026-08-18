@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v22";
+  const APP_VERSION = "v23";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
