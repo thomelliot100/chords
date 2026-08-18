@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v15";
+  const APP_VERSION = "v16";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -761,6 +761,17 @@
       }
       impEl("impText").value = text;
       autoFillMeta(text);
+      // Last resort for the title: the file's own name. Without this, a chart
+      // whose header doesn't name the song — or whose header you trimmed off —
+      // leaves Title empty, and saving then refuses with only a small hint.
+      const titleEl = impEl("impTitle");
+      if (titleEl && !titleEl.value.trim()) {
+        titleEl.value = file.name
+          .replace(/\.[a-z0-9]+$/i, "")
+          .replace(/[_-]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
       refreshImportPreview();
     }).catch(function (err) {
       lastFileProblem = "Couldn't read “" + file.name + "”: " +
@@ -874,7 +885,16 @@
   function saveImport() {
     const title = impEl("impTitle").value.trim();
     const body = bodyFromPaste(impEl("impText").value);
-    if (!title) { setHint("Give it a title first.", true); return; }
+    if (!title) {
+      // Point at the box that's blocking, rather than only writing a hint
+      // under the chart where it's easy to miss.
+      setHint("Give it a title first — the Title box is empty.", true);
+      const el = impEl("impTitle");
+      el.classList.add("needed");
+      el.focus();
+      setTimeout(function () { el.classList.remove("needed"); }, 2000);
+      return;
+    }
     if (!body) {
       // Don't bury the reason a file failed behind a generic message.
       setHint(lastFileProblem || "Nothing to import — paste a chart.", true);

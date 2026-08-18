@@ -376,6 +376,12 @@ body { height: 100dvh; overflow: hidden; }
   overflow-wrap: normal;
   overflow-x: auto;
 }
+/* Flags the field that's blocking a save. */
+.import-fields input.needed {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 28%, transparent);
+}
+
 .import-file { display: flex; align-items: center; gap: 10px; }
 .import-filename {
   color: var(--muted);
