@@ -16,7 +16,7 @@
      running version is a fact you can read, not something to guess at — and
      so a stale service worker shows up as a mismatch instead of silently
      serving old code. */
-  const APP_VERSION = "v14";
+  const APP_VERSION = "v15";
 
   // ---- Note maths for transpose -------------------------------------------
   const SHARP = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
@@ -769,6 +769,43 @@
     });
   }
 
+  // ---- Trimming the pasted chart -------------------------------------------
+  // Charts arrive wrapped in site furniture — headers, footers, "printed from"
+  // lines. Most of it is at the top or the bottom, so cutting a line at a time
+  // from either end clears it faster than selecting text in a small box.
+  const editHistory = [];
+
+  function pushEditHistory() {
+    editHistory.push(impEl("impText").value);
+    if (editHistory.length > 50) editHistory.shift();
+    $("impUndo").disabled = false;
+  }
+
+  function undoEdit() {
+    if (!editHistory.length) return;
+    impEl("impText").value = editHistory.pop();
+    $("impUndo").disabled = editHistory.length === 0;
+    refreshImportPreview();
+  }
+
+  // Drop the first (or last) line that actually has something on it, along
+  // with any blank lines outside it.
+  function trimEnd(fromTop) {
+    const lines = impEl("impText").value.split("\n");
+    let i = fromTop ? 0 : lines.length - 1;
+    const step = fromTop ? 1 : -1;
+    while (i >= 0 && i < lines.length && !lines[i].trim()) i += step;
+    if (i < 0 || i >= lines.length) return;      // nothing left to cut
+    pushEditHistory();
+    lines.splice(i, 1);
+    // Tidy away blanks now stranded at that end.
+    while (lines.length && !lines[fromTop ? 0 : lines.length - 1].trim()) {
+      lines.splice(fromTop ? 0 : lines.length - 1, 1);
+    }
+    impEl("impText").value = lines.join("\n");
+    refreshImportPreview();
+  }
+
   // ---- Import --------------------------------------------------------------
   function impEl(id) { return $(id); }
 
@@ -798,6 +835,13 @@
       const el = impEl("imp" + f.charAt(0).toUpperCase() + f.slice(1));
       if (el && !el.value.trim() && found[f]) el.value = found[f];
     });
+    // Say "None" rather than leaving the box empty: a blank capo reads as
+    // "not filled in yet", when in practice a chart that never mentions a
+    // capo is a chart you play without one.
+    const capoEl = impEl("impCapo");
+    if (capoEl && (!capoEl.value.trim() || capoEl.value.trim() === "0")) {
+      capoEl.value = "None";
+    }
     // No stated key? Infer one from the chords actually used.
     const keyEl = impEl("impKey");
     if (keyEl && !keyEl.value.trim()) {
@@ -1081,6 +1125,9 @@
     $("importClose").addEventListener("click", closeImport);
     $("impSave").addEventListener("click", saveImport);
     $("impExport").addEventListener("click", exportMine);
+    $("impTrimTop").addEventListener("click", function () { trimEnd(true); });
+    $("impTrimBottom").addEventListener("click", function () { trimEnd(false); });
+    $("impUndo").addEventListener("click", undoEdit);
     $("impBackup").addEventListener("click", exportBackup);
     $("impRestore").addEventListener("click", function () { $("impBackupFile").click(); });
     $("impBackupFile").addEventListener("change", function (e) {

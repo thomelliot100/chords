@@ -87,12 +87,18 @@
         <input id="impTitle" placeholder="Title" autocomplete="off" />
         <input id="impArtist" placeholder="Artist" autocomplete="off" />
         <input id="impKey" placeholder="Key" autocomplete="off" />
-        <input id="impCapo" type="number" placeholder="Capo" min="0" max="11" />
+        <input id="impCapo" type="text" placeholder="Capo" aria-label="Capo" autocomplete="off" />
       </div>
       <div class="import-file">
         <button class="btn" id="impFileBtn" type="button">📄 Open PDF or text file</button>
         <input id="impFile" type="file" accept=".pdf,.txt,.text,.cho,.crd,application/pdf,text/plain" hidden />
         <span class="import-filename" id="impFileName"></span>
+      </div>
+      <div class="edit-bar">
+        <span class="edit-note">Editable — trim anything you don't need</span>
+        <button class="btn mini" id="impTrimTop" title="Delete the first line">⤒ Cut first</button>
+        <button class="btn mini" id="impTrimBottom" title="Delete the last line">⤓ Cut last</button>
+        <button class="btn mini" id="impUndo" title="Undo the last cut" disabled>↶ Undo</button>
       </div>
       <textarea id="impText" placeholder="Paste the chart here, or drop a file on this box…" spellcheck="false"></textarea>
       <div class="import-hint" id="impHint"></div>

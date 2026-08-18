@@ -361,8 +361,13 @@ body { height: 100dvh; overflow: hidden; }
   font-size: 16px;
   outline: none;
 }
+.edit-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.edit-note { color: var(--muted); font-size: 12.5px; margin-right: auto; }
+.edit-bar .btn.mini { height: 28px; font-size: 12.5px; padding: 0 8px; }
+.edit-bar .btn.mini[disabled] { opacity: 0.4; cursor: default; }
+
 #impText {
-  min-height: 130px;
+  min-height: 230px;
   resize: vertical;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
