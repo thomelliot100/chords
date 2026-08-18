@@ -497,7 +497,11 @@
   function itemsToLines(items) {
     const rows = [];
     items.forEach(function (it) {
-      if (!it.str || !it.str.trim()) return;
+      // Keep whitespace-only items. pdf.js has already worked out where the
+      // spaces go, and on a real chart a third of the items are spaces —
+      // dropping them and re-deriving spacing from geometry splits and jams
+      // words, which reads as spelling mistakes.
+      if (!it.str) return;
       const x = it.transform[4];
       const y = it.transform[5];
       let row = null;
@@ -509,28 +513,48 @@
     });
     if (!rows.length) return [];
 
-    // Average glyph width across the page gives us a character grid to snap to.
-    let total = 0, n = 0;
-    rows.forEach(function (r) {
-      r.items.forEach(function (i) {
-        if (i.str.length && i.w > 0) { total += i.w / i.str.length; n++; }
-      });
-    });
-    const charW = n ? total / n : 5;
-
+    // Character grid for turning an x position into a column. Use the MEDIAN
+    // per-character width, not the mean: proportional fonts throw out extreme
+    // outliers (this varies ~23x on real charts) and a mean is dragged badly
+    // off by them.
+    const perChar = [];
     let minX = Infinity;
     rows.forEach(function (r) {
-      r.items.forEach(function (i) { if (i.x < minX) minX = i.x; });
+      r.items.forEach(function (i) {
+        if (!i.str.trim()) return;          // blanks skew both measures
+        if (i.w > 0) perChar.push(i.w / i.str.length);
+        if (i.x < minX) minX = i.x;
+      });
     });
+    perChar.sort(function (a, b) { return a - b; });
+    const charW = perChar.length ? perChar[Math.floor(perChar.length / 2)] : 5;
+    if (minX === Infinity) minX = 0;
+
+    // Padding is only for genuine positional jumps — an indent, or the gap
+    // between chords on a chord row. Runs that merely sit next to each other
+    // are one word and must be joined with nothing at all. Measured against
+    // pdf.js's own word segmentation, anything from ~1x to 3x charW scores
+    // identically, so this sits in the middle of that plateau.
+    const spaceGap = charW * 1.5;
 
     rows.sort(function (a, b) { return b.y - a.y; }); // PDF y grows upward
     return rows.map(function (r) {
       r.items.sort(function (a, b) { return a.x - b.x; });
       let line = "";
+      let prevEnd = null;
       r.items.forEach(function (i) {
-        const col = Math.max(0, Math.round((i.x - minX) / charW));
-        if (col > line.length) line += new Array(col - line.length + 1).join(" ");
+        if (prevEnd === null) {
+          const col = Math.max(0, Math.round((i.x - minX) / charW));
+          if (col > line.length) line += new Array(col - line.length + 1).join(" ");
+        } else if (i.x - prevEnd > spaceGap) {
+          // Real gap: hold the column if we can, but always leave one space.
+          const col = Math.max(0, Math.round((i.x - minX) / charW));
+          const target = Math.max(col, line.length + 1);
+          line += new Array(target - line.length + 1).join(" ");
+        }
+        // else: continuation of the same word — append with no separator.
         line += i.str;
+        prevEnd = i.x + (i.w || 0);
       });
       return line.replace(/\s+$/, "");
     });
